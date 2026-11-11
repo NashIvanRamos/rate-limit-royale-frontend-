@@ -9,10 +9,12 @@ export interface DistributionSegment {
 interface DistributionBarProps {
   segments: DistributionSegment[];
   label: string;
+  /** Hide the built-in per-segment legend (the caller draws its own). */
+  hideLegend?: boolean;
 }
 
 /** Stacked horizontal bar, for example the 200 / 429 / 401 split of a round. Grows in on mount. */
-export function DistributionBar({ segments, label }: DistributionBarProps) {
+export function DistributionBar({ segments, label, hideLegend }: DistributionBarProps) {
   const total = segments.reduce((sum, s) => sum + Math.max(0, s.value), 0);
   const pct = (v: number) => (total ? Math.round((v / total) * 100) : 0);
   const summary = segments.map((s) => `${s.label} ${s.value} (${pct(s.value)}%)`).join(", ");
@@ -28,14 +30,16 @@ export function DistributionBar({ segments, label }: DistributionBarProps) {
           />
         ))}
       </div>
-      <div className="dist__legend" aria-hidden="true">
-        {segments.map((s) => (
-          <span key={s.label} className="row">
-            <span className={`metric-row__chip chip-${s.tone}`} />
-            {s.label} <span className="num">{pct(s.value)}%</span>
-          </span>
-        ))}
-      </div>
+      {!hideLegend && (
+        <div className="dist__legend" aria-hidden="true">
+          {segments.map((s) => (
+            <span key={s.label} className="row">
+              <span className={`metric-row__chip chip-${s.tone}`} />
+              {s.label} <span className="num">{pct(s.value)}%</span>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

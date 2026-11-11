@@ -94,11 +94,13 @@ function Game() {
           )}
         </section>
 
-        {(state.phase === "configuring" || state.phase === "firing") && (
+        {(state.phase === "configuring" || state.phase === "firing" || state.phase === "results") && (
           <section className="section">
-            <ConfigPanel config={state.config} onChange={setConfig} disabled={isFiring} />
+            <ConfigPanel config={state.config} onChange={setConfig} disabled={state.phase !== "configuring"} />
             <DefensePreview config={state.config} />
-            <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
+            {state.phase !== "results" && (
+              <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
+            )}
           </section>
         )}
 

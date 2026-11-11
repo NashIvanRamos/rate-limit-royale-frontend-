@@ -716,6 +716,130 @@ input {
   to { transform: scaleX(1); }
 }
 
+/* ---------- Results ---------- */
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px 24px;
+}
+
+.result-grid--3 { grid-template-columns: repeat(3, 1fr); }
+
+.result-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.result-tile__value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.result-tile .tone-neutral { color: var(--text-strong); }
+
+.result-tile__note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.results__subtitle {
+  font-size: 15px;
+}
+
+.results__attack {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dist-ends {
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--card);
+  animation: fade-in 400ms ease-out both;
+}
+
+.outcome--cleared { border-color: color-mix(in srgb, var(--accepted) 40%, var(--border)); }
+.outcome--breached { border-color: color-mix(in srgb, var(--blocked) 45%, var(--border)); }
+
+.outcome__title {
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-strong);
+}
+
+.outcome__text { margin: 0; color: var(--text); }
+
+.outcome__lesson {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.outcome__xp {
+  font-size: 22px;
+  font-weight: 750;
+  color: var(--xp);
+}
+
+/* ---------- Final summary ---------- */
+
+.table-wrap { overflow-x: auto; max-width: 100%; }
+
+/* Wide content (tables, long numbers) must scroll inside its box, never widen the page. */
+.shell, .hero, .section, .section > *, .stack { min-width: 0; }
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.summary-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 10px 8px 0;
+  white-space: nowrap;
+}
+
+.summary-table td {
+  padding: 10px 10px 10px 0;
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.summary-table .num-col { text-align: right; }
+.summary-table th:last-child, .summary-table td:last-child { padding-right: 0; }
+
+.summary-table__name {
+  white-space: normal !important;
+  min-width: 120px;
+}
+
+@media (max-width: 480px) {
+  .result-grid--3 { grid-template-columns: repeat(2, 1fr); }
+  /* Each round's config is on its results screen; the phone table keeps the outcome columns. */
+  .summary-table__config { display: none; }
+}
+
 /* ---------- Banner ---------- */
 
 .banner {
