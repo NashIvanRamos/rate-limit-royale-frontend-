@@ -1,26 +1,31 @@
-import type { Algorithm, DefenseConfig } from "../types";
-import { Card } from "./ui/Card";
-import { MetricRow } from "./ui/MetricRow";
+import { ALGORITHM_NAMES, formatWindow, KEY_BY_NAMES, refillLabel } from "../labels";
+import type { DefenseConfig } from "../types";
 import { Tag } from "./ui/Tag";
 
-const ALGORITHM_NAMES: Record<Algorithm, string> = {
-  fixed: "Fixed Window",
-  sliding: "Sliding Window",
-  token: "Token Bucket",
-};
-
-/** Basic version (task 08). Styled in task 10. */
+/** What will be deployed, mirrored live from the config. */
 export function DefensePreview({ config }: { config: DefenseConfig }) {
-  const refillS = config.windowMs / config.maxRequests / 1000;
+  const rows: Array<[string, string]> = [
+    ["Algorithm", ALGORITHM_NAMES[config.algorithm]],
+    ["Max requests", String(config.maxRequests)],
+    ["Window", formatWindow(config.windowMs)],
+    ["Keying", KEY_BY_NAMES[config.keyBy]],
+  ];
+  if (config.algorithm === "token") rows.push(["Refill rate", refillLabel(config)]);
+
   return (
-    <Card label="Defense configuration" aside={<Tag tone="preview">Preview</Tag>} accent="preview">
-      <div className="metric-list">
-        <MetricRow label="Algorithm" value={ALGORITHM_NAMES[config.algorithm]} />
-        <MetricRow label="Max requests" value={config.maxRequests} />
-        <MetricRow label="Window" value={`${config.windowMs / 1000}s`} />
-        <MetricRow label="Keying" value={config.keyBy === "ip" ? "Per IP" : "Per user"} />
-        {config.algorithm === "token" && <MetricRow label="Refill" value={`1 token / ${refillS.toFixed(1)}s`} />}
+    <section className="preview" aria-label="Defense configuration preview">
+      <div className="row spread">
+        <h3 className="preview__title">Defense configuration</h3>
+        <Tag tone="preview">Preview</Tag>
       </div>
-    </Card>
+      <dl className="kv">
+        {rows.map(([k, v]) => (
+          <div key={k} className="kv__row">
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

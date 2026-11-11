@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FiringState } from "../state";
 import { Button } from "./ui/Button";
+import { Icon } from "./ui/Icon";
 import { ProgressBar } from "./ui/ProgressBar";
 
 interface DeployButtonProps {
@@ -10,7 +11,7 @@ interface DeployButtonProps {
   onDeploy: () => void;
 }
 
-/** Re-renders every second while `active`, for the boundary countdown. */
+/** Re-renders a few times a second while `active`, for the boundary countdown. */
 function useNow(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -25,7 +26,7 @@ function stageLabel(f: FiringState, now: number): string {
   switch (f.stage) {
     case null:
     case "deploying":
-      return "Deploying…";
+      return "Deploying defense…";
     case "logging-in":
       return `Logging in ${f.setupTotal} accounts… ${f.setupDone}/${f.setupTotal}`;
     case "waiting-boundary":
@@ -43,22 +44,18 @@ function stageProgress(f: FiringState): number {
   return 0;
 }
 
-/** Basic version (task 08). Styled in task 10. */
 export function DeployButton({ firing, isFiring, disabled, onDeploy }: DeployButtonProps) {
   const now = useNow(isFiring && firing.stage === "waiting-boundary");
   return (
     <div className="stack" style={{ gap: 8 }}>
       <Button variant="primary" fullWidth loading={isFiring} disabled={disabled} onClick={onDeploy}>
-        {isFiring ? stageLabel(firing, now) : "Deploy Defense & Launch Attack"}
+        {!isFiring && <Icon name="swords" />}
+        <span aria-live="polite">{isFiring ? stageLabel(firing, now) : "Deploy Defense & Launch Attack"}</span>
       </Button>
-      {isFiring && (
-        <>
-          <ProgressBar value={stageProgress(firing)} tone="accepted" label="Round progress" />
-          <p className="num muted" style={{ margin: 0, textAlign: "center" }}>
-            <span className="tone-accepted">{firing.counts.s200} × 200</span> · <span className="tone-blocked">{firing.counts.s429} × 429</span> ·{" "}
-            <span className="tone-auth">{firing.counts.s401} × 401</span>
-          </p>
-        </>
+      {isFiring ? (
+        <ProgressBar value={stageProgress(firing)} tone="accepted" label="Round progress" />
+      ) : (
+        <p className="deploy__caption">Every request goes to your real Express backend. Every number is measured.</p>
       )}
     </div>
   );
