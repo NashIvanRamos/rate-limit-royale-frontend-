@@ -756,6 +756,14 @@ input {
   color: var(--muted);
 }
 
+.results__server {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.results__server.tone-auth { color: var(--auth); }
+
 .dist-ends {
   font-size: 12px;
   flex-wrap: wrap;

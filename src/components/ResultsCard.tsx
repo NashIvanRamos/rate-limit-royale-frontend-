@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { SCORING } from "../scoring";
-import type { RoundResult, Scenario, Tally } from "../types";
+import type { CrossCheck, RoundResult, Scenario, StatusCounts, Tally } from "../types";
 import { BoundaryTimeline } from "./BoundaryTimeline";
 import { KeysPanel } from "./KeysPanel";
 import { CountUp } from "./ui/CountUp";
@@ -25,6 +25,26 @@ function ResultTile({ label, value, tone = "neutral", note }: { label: string; v
       <span className={`result-tile__value num tone-${tone}`}>{value}</span>
       {note && <span className="result-tile__note">{note}</span>}
     </div>
+  );
+}
+
+const triple = (c: StatusCounts) => `${c.s200} / ${c.s429} / ${c.s401}`;
+
+/** "Server confirms: 182 / 18 / 0 ✓" (200 / 429 / 401), or an amber mismatch with the server's numbers. */
+function ServerCheck({ check }: { check: CrossCheck }) {
+  const parts = [{ label: "", ...check.resource }, ...(check.login ? [{ label: "login ", ...check.login }] : [])];
+  const allMatch = parts.every((p) => p.match);
+  return (
+    <p className={`results__server num ${allMatch ? "" : "tone-auth"}`}>
+      {allMatch ? "Server confirms: " : "Server: "}
+      {parts.map((p, i) => (
+        <span key={p.label}>
+          {i > 0 && " · "}
+          {p.label}
+          {triple(p.server)} {p.match ? "✓" : `(mismatch, browser saw ${triple(p.client)})`}
+        </span>
+      ))}
+    </p>
   );
 }
 
@@ -89,9 +109,12 @@ export function ResultsCard({ result, scenario, isLastRound, onNext }: ResultsCa
         {t.errors > 0 && <ResultTile label="Network errors" value={t.errors} />}
       </div>
 
-      <p className="results__attack num">
-        Attack: {t.attackTotal} sent · {t.attackStopped} stopped · {t.attackPassed} passed (allowance {result.allowance})
-      </p>
+      <div className="stack" style={{ gap: 2 }}>
+        <p className="results__attack num">
+          Attack: {t.attackTotal} sent · {t.attackStopped} stopped · {t.attackPassed} passed (allowance {result.allowance})
+        </p>
+        {result.crossCheck && <ServerCheck check={result.crossCheck} />}
+      </div>
 
       <div className="stack" style={{ gap: 10 }}>
         <h3 className="results__subtitle">HTTP response distribution</h3>
@@ -124,7 +147,12 @@ export function ResultsCard({ result, scenario, isLastRound, onNext }: ResultsCa
       {scenario.id === 5 && (
         <div className="stack" style={{ gap: 10 }}>
           <h3 className="results__subtitle">Rate limit keys</h3>
-          <KeysPanel scenario={scenario} config={result.config} byClient={t.byClient} />
+          <KeysPanel
+            scenario={scenario}
+            config={result.config}
+            byClient={t.byClient}
+            serverKeys={result.crossCheck && { tracked: result.crossCheck.trackedKeys, legit: result.crossCheck.legitKeys }}
+          />
         </div>
       )}
 

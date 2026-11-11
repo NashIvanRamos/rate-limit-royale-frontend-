@@ -9,6 +9,8 @@ interface KeysPanelProps {
   config: DefenseConfig;
   /** Live counts while firing, or the tally's byClient on the results screen. */
   byClient: Record<string, StatusCounts>;
+  /** Server truth from GET /api/stats (results only): limiter keys held, and how many are legit clients'. */
+  serverKeys?: { tracked: number; legit: number };
 }
 
 const ZERO: StatusCounts = { s200: 0, s429: 0, s401: 0 };
@@ -17,7 +19,7 @@ const ZERO: StatusCounts = { s200: 0, s429: 0, s401: 0 };
  * Round 5's keying story: under "key by user" the limiter holds one budget per rotating account
  * (50 keys); under "key by IP" all 50 accounts share 10.6.6.6's single budget (1 key).
  */
-export function KeysPanel({ scenario, config, byClient }: KeysPanelProps) {
+export function KeysPanel({ scenario, config, byClient, serverKeys }: KeysPanelProps) {
   const attackers = useMemo(() => scenario.clients.filter((c) => !c.legit), [scenario]);
   // Requests each account is scripted to send, so a cell's fill is "share of its requests that passed".
   const scripted = useMemo(() => {
@@ -73,6 +75,12 @@ export function KeysPanel({ scenario, config, byClient }: KeysPanelProps) {
           </span>
           <span className="config__note">{blocked > 0 ? "Budget spent: every account behind this IP is blocked" : "Shared budget for all 50 accounts"}</span>
         </div>
+      )}
+
+      {serverKeys && (
+        <p className="results__server num">
+          Server limiter holds {serverKeys.tracked} keys: {Math.max(0, serverKeys.tracked - serverKeys.legit)} attacker + {serverKeys.legit} legit.
+        </p>
       )}
     </div>
   );
