@@ -72,6 +72,16 @@ export interface ResourceResponse {
   servedAt: number;
 }
 
+/** GET /api/stats (backend task 07): the server's own tally since the last deploy. Fields the UI uses. */
+export interface StatsResponse {
+  since: number;
+  resource: { total: number; s200: number; s401: number; s429: number; other: number; byReason: Record<string, number> };
+  /** /api/login only: the expired-token endpoint is not counted. Includes the round's setup logins. */
+  login: { total: number; s200: number; s400: number; s401: number; s429: number; other: number };
+  /** Keys the active limiter holds in memory. */
+  trackedKeys: number;
+}
+
 // ─── Core request ────────────────────────────────────────────────────────────
 
 export interface RequestOptions {
@@ -191,6 +201,11 @@ export function expiredToken(username: string, password: string, ip: string, sig
 /** GET /api/resource: the protected endpoint. No token → 401 missing_token. */
 export function resource(token: string | undefined, ip: string, signal?: AbortSignal) {
   return apiRequest<ResourceResponse>("/api/resource", { token, ip, signal });
+}
+
+/** GET /api/stats: never rate limited, reset on every deploy. 404 on backends without it. */
+export function stats(signal?: AbortSignal) {
+  return apiRequest<StatsResponse>("/api/stats", { signal });
 }
 
 // ─── Headers ─────────────────────────────────────────────────────────────────

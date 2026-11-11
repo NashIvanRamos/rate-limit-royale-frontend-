@@ -7,8 +7,10 @@ import {
   expiredToken,
   login,
   passwordFor,
+  stats,
   type ApiResult,
   type DefenseSnapshot,
+  type StatsResponse,
 } from "./api";
 import { runScenario, type FiringProgress } from "./scheduler";
 import { algNoneToken, forgedToken, garbageToken } from "./tokens";
@@ -102,6 +104,8 @@ export interface RoundRun {
   startAt: number;
   /** Scripted length: the last event's `at` (0 when there are no events). */
   durationMs: number;
+  /** The server's own tally after drain, for the cross-check. Undefined if unavailable. */
+  serverStats?: StatsResponse;
 }
 
 const clientMap = (clients: ClientSpec[]) => Object.fromEntries(clients.map((c) => [c.id, c]));
@@ -271,7 +275,13 @@ export async function runRound({ scenario, config, onStage, onProgress, signal }
   }
   throwIfAborted(signal);
 
-  return { records, events, deployed, startAt, durationMs };
+  // 6. Server cross-check (optional). Every response has finished by now, so the server's counts are
+  // complete. A failure here must never fail the round.
+  const statsRes = await stats(signal);
+  throwIfAborted(signal);
+  const serverStats = statsRes.ok ? statsRes.data : undefined;
+
+  return { records, events, deployed, startAt, durationMs, serverStats };
 }
 
 /**

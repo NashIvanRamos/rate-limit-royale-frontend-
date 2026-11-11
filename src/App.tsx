@@ -9,8 +9,7 @@ import { Header } from "./components/Header";
 import { LiveFiring } from "./components/LiveFiring";
 import { ResultsCard } from "./components/ResultsCard";
 import { Button } from "./components/ui/Button";
-import { ComponentGallery } from "./debug/ComponentGallery";
-import { DebugPanel } from "./debug/DebugPanel";
+import { crossCheck } from "./crossCheck";
 import { useServerHealth } from "./hooks/useServerHealth";
 import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, type RoundRun } from "./runRound";
 import { edgeExploitTiming, ROUND_COUNT, scenarioFor } from "./scenarios";
@@ -95,7 +94,11 @@ function Game() {
       if (t.errors > 0) throw new OfflineError(`Lost the backend mid-round: ${t.errors} of ${t.total} requests failed. No XP recorded.`);
       const s = score(t, run.deployed.config, run.events, scenario, { startAt: run.startAt, windowEpochMs: run.deployed.windowEpochMs });
       const timeline = scenario.id === 2 ? boundaryTimeline(run, scenario) : undefined;
-      dispatch({ type: "ROUND_COMPLETE", result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline } });
+      const check = run.serverStats ? crossCheck(t, run.serverStats, scenario, run.deployed.config) : undefined;
+      dispatch({
+        type: "ROUND_COMPLETE",
+        result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline, crossCheck: check },
+      });
     } catch (err) {
       dispatch({ type: "ROUND_FAILED", error: toAppError(err) });
     } finally {
@@ -163,7 +166,16 @@ function Game() {
 
         {state.phase === "results" && state.results && (
           <section className="section">
-            <ResultsCard result={state.results} scenario={scenario} isLastRound={state.round >= ROUND_COUNT} onNext={() => dispatch({ type: "NEXT_ROUND" })} />
+            <ResultsCard
+              result={state.results}
+              scenario={scenario}
+              isLastRound={state.round >= ROUND_COUNT}
+              onNext={() => dispatch({ type: "NEXT_ROUND" })}
+              onRetry={() => {
+                dispatch({ type: "RETRY_ROUND" });
+                window.scrollTo({ top: 0 });
+              }}
+            />
           </section>
         )}
 
@@ -177,10 +189,7 @@ function Game() {
   );
 }
 
-// Dev-only tools: #debug (plumbing and round harness) and #gallery (UI primitives). Reload after changing the hash.
 function App() {
-  if (import.meta.env.DEV && window.location.hash === "#debug") return <DebugPanel />;
-  if (import.meta.env.DEV && window.location.hash === "#gallery") return <ComponentGallery />;
   return <Game />;
 }
 

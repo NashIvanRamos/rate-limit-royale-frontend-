@@ -129,6 +129,16 @@ export interface BoundaryTimeline {
   points: Array<{ t: number; status: number }>;
 }
 
+/** Client tally vs the server's own counts (GET /api/stats). */
+export interface CrossCheck {
+  resource: { client: StatusCounts; server: StatusCounts; match: boolean };
+  /** Only when the round sent /api/login events (round 4). Server counts exclude setup logins. */
+  login?: { client: StatusCounts; server: StatusCounts; match: boolean };
+  /** Limiter keys the server holds, and how many of them belong to legit clients. */
+  trackedKeys: number;
+  legitKeys: number;
+}
+
 export interface RoundResult {
   round: RoundId;
   config: DefenseConfig;
@@ -139,4 +149,5 @@ export interface RoundResult {
   allowance: number;
   durationMs: number;
   timeline?: BoundaryTimeline;
+  crossCheck?: CrossCheck;
 }
