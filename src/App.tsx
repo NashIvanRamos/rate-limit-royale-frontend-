@@ -79,26 +79,41 @@ function Game() {
 
   return (
     <main className="app">
-      <Header round={state.round} score={state.score} serverOnline={state.serverOnline} />
       {state.serverOnline === false && <OfflineBanner />}
       {state.error && <ErrorBanner error={state.error} onDismiss={() => dispatch({ type: "DISMISS_ERROR" })} />}
 
-      {state.phase === "briefing" && <BriefingCard scenario={scenario} config={state.config} onContinue={() => dispatch({ type: "CONTINUE" })} />}
+      <div className="shell">
+        <section className="hero">
+          <Header round={state.round} score={state.score} serverOnline={state.serverOnline} />
+          {state.phase !== "summary" && (
+            <BriefingCard
+              scenario={scenario}
+              config={state.config}
+              onContinue={state.phase === "briefing" ? () => dispatch({ type: "CONTINUE" }) : undefined}
+            />
+          )}
+        </section>
 
-      {(state.phase === "configuring" || state.phase === "firing") && (
-        <>
-          <BriefingCard scenario={scenario} config={state.config} />
-          <ConfigPanel config={state.config} onChange={setConfig} disabled={isFiring} />
-          <DefensePreview config={state.config} />
-          <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
-        </>
-      )}
+        {(state.phase === "configuring" || state.phase === "firing") && (
+          <section className="section">
+            <ConfigPanel config={state.config} onChange={setConfig} disabled={isFiring} />
+            <DefensePreview config={state.config} />
+            <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
+          </section>
+        )}
 
-      {state.phase === "results" && state.results && (
-        <ResultsCard result={state.results} scenario={scenario} isLastRound={state.round >= ROUND_COUNT} onNext={() => dispatch({ type: "NEXT_ROUND" })} />
-      )}
+        {state.phase === "results" && state.results && (
+          <section className="section">
+            <ResultsCard result={state.results} scenario={scenario} isLastRound={state.round >= ROUND_COUNT} onNext={() => dispatch({ type: "NEXT_ROUND" })} />
+          </section>
+        )}
 
-      {state.phase === "summary" && <FinalSummary history={state.history} score={state.score} onRestart={() => dispatch({ type: "RESTART" })} />}
+        {state.phase === "summary" && (
+          <section className="section">
+            <FinalSummary history={state.history} score={state.score} onRestart={() => dispatch({ type: "RESTART" })} />
+          </section>
+        )}
+      </div>
     </main>
   );
 }

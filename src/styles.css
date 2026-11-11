@@ -7,6 +7,8 @@
   --card-raised: #1a2331;
   --border: #263041;
   --border-strong: #34405a;
+  /* Page frame below the hero: darker than cards, as in the sample UI. */
+  --shell: #06080d;
   --text: #e5e7eb;
   --text-strong: #f8fafc;
   --muted: #8b95a7;
@@ -62,12 +64,62 @@ input {
 /* ---------- Layout ---------- */
 
 .app {
-  max-width: 640px;
+  max-width: 680px;
   margin: 0 auto;
   padding: 24px 16px 64px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* The game frame: a raised hero (header + briefing) above flat sections, as in the sample UI. */
+.shell {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--shell);
+}
+
+.hero {
+  background: var(--card);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.section__title {
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.section__sub {
+  margin: 0;
+  color: var(--muted);
+}
+
+.divider {
+  height: 1px;
+  border: 0;
+  margin: 0;
+  background: var(--border);
+}
+
+@media (max-width: 480px) {
+  .app { padding: 0 0 48px; }
+  .shell { border-radius: 0; border-inline: 0; }
+  .hero, .section { padding: 16px; }
+  .brand__title { font-size: 13px; }
+  .scoreline__value { font-size: 19px; }
 }
 
 .stack {
@@ -161,7 +213,11 @@ input {
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
   border: 1px solid var(--border);
   background: var(--card);
 }
@@ -173,9 +229,56 @@ input {
   background: var(--muted);
 }
 
+.pill--online { border-color: color-mix(in srgb, var(--accepted) 45%, transparent); color: var(--accepted); }
 .pill--online .pill__dot { background: var(--accepted); box-shadow: 0 0 8px var(--accepted); }
 .pill--offline { border-color: var(--blocked); color: var(--blocked); }
 .pill--offline .pill__dot { background: var(--blocked); }
+
+/* ---------- Header ---------- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand__icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--card-raised);
+  border: 1px solid var(--border-strong);
+  color: var(--text-strong);
+}
+
+.brand__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-strong);
+}
+
+.scoreline {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.scoreline__value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-strong);
+  line-height: 1.2;
+}
+
+.scoreline__value--xp { color: var(--xp); }
 
 /* ---------- Stat tile ---------- */
 
