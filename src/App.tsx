@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { BriefingCard } from "./components/BriefingCard";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { DefensePreview } from "./components/DefensePreview";
 import { DeployButton } from "./components/DeployButton";
-import { ErrorBanner, OfflineBanner } from "./components/ErrorBanner";
+import { ErrorBanner, OfflineBanner, TabHiddenBanner } from "./components/ErrorBanner";
 import { FinalSummary } from "./components/FinalSummary";
 import { Header } from "./components/Header";
 import { ResultsCard } from "./components/ResultsCard";
+import { Button } from "./components/ui/Button";
 import { ComponentGallery } from "./debug/ComponentGallery";
 import { DebugPanel } from "./debug/DebugPanel";
 import { useServerHealth } from "./hooks/useServerHealth";
@@ -47,6 +48,17 @@ function Game() {
   const scenario = scenarioFor(state.round);
   const isFiring = state.phase === "firing";
 
+  // Background tabs throttle timers: warn if the tab is hidden while a round is firing.
+  const [tabWarning, setTabWarning] = useState(false);
+  useEffect(() => {
+    if (!isFiring) return;
+    const onVisibility = () => {
+      if (document.hidden) setTabWarning(true);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [isFiring]);
+
   // Started only from this click handler, never from an effect (StrictMode runs effects twice).
   async function handleDeploy() {
     if (controllerRef.current || state.phase !== "configuring" || state.serverOnline !== true) return;
@@ -54,6 +66,7 @@ function Game() {
     controllerRef.current = ac;
     const round = state.round;
     const config = state.config;
+    setTabWarning(false);
     dispatch({ type: "DEPLOY_START" });
     try {
       const run = await runRound({
@@ -76,11 +89,31 @@ function Game() {
   }
 
   const setConfig = (config: Partial<DefenseConfig>) => dispatch({ type: "SET_CONFIG", config });
+  /** Back to configuring with no XP and no history entry (runRound throws RoundAbortedError). */
+  const abortRound = () => controllerRef.current?.abort();
+  const dismissError = () => dispatch({ type: "DISMISS_ERROR" });
+  const showConfig = state.phase === "configuring" || state.phase === "firing";
+
+  // Notices go right above the deploy button while it's on screen (the page is long, and that's where
+  // the player is looking after clicking Deploy); otherwise at the top.
+  const notices = (
+    <>
+      {state.serverOnline === false && <OfflineBanner />}
+      {state.error && (
+        <ErrorBanner
+          error={state.error}
+          onDismiss={dismissError}
+          onRetry={state.error.kind === "setup" && state.phase === "configuring" ? handleDeploy : undefined}
+          retryDisabled={state.serverOnline !== true}
+        />
+      )}
+      {tabWarning && <TabHiddenBanner onDismiss={() => setTabWarning(false)} />}
+    </>
+  );
 
   return (
     <main className="app">
-      {state.serverOnline === false && <OfflineBanner />}
-      {state.error && <ErrorBanner error={state.error} onDismiss={() => dispatch({ type: "DISMISS_ERROR" })} />}
+      {!showConfig && notices}
 
       <div className="shell">
         <section className="hero">
@@ -98,8 +131,14 @@ function Game() {
           <section className="section">
             <ConfigPanel config={state.config} onChange={setConfig} disabled={state.phase !== "configuring"} />
             <DefensePreview config={state.config} />
+            {showConfig && notices}
             {state.phase !== "results" && (
               <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
+            )}
+            {isFiring && (
+              <Button variant="ghost" fullWidth onClick={abortRound}>
+                Abort round
+              </Button>
             )}
           </section>
         )}

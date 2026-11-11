@@ -842,6 +842,11 @@ input {
 
 /* ---------- Banner ---------- */
 
+.error-details {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
 .banner {
   display: flex;
   align-items: flex-start;
