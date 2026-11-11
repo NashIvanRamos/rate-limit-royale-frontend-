@@ -2,8 +2,10 @@
 // which also guards against double clicks.
 //
 //   briefing ──CONTINUE──▶ configuring ──DEPLOY_START──▶ firing ──ROUND_COMPLETE──▶ results ──NEXT_ROUND──▶ briefing
-//                              ▲                            │                                (after round 5 → summary)
-//                              └──────ROUND_FAILED──────────┘                        summary ──RESTART──▶ briefing
+//                              ▲                            │                          │      (after round 5 → summary)
+//                              ├──────ROUND_FAILED──────────┘                          │
+//                              └──────RETRY_ROUND (replaces this round's result)───────┘
+//                                                                                    summary ──RESTART──▶ briefing
 
 import type { StageEvent, Stage } from "./runRound";
 import type { FiringProgress, LiveCounts } from "./scheduler";
@@ -61,6 +63,8 @@ export type Action =
   /** error null = the player aborted: back to configuring with no message. */
   | { type: "ROUND_FAILED"; error: AppError | null }
   | { type: "NEXT_ROUND" }
+  /** Replay the current round: its XP and history entry are removed, so only the last attempt counts. */
+  | { type: "RETRY_ROUND" }
   | { type: "RESTART" }
   | { type: "SERVER_STATUS"; online: boolean }
   | { type: "DISMISS_ERROR" };
@@ -152,6 +156,17 @@ export function reducer(state: State, action: Action): State {
       if (state.phase !== "results") return state;
       if (state.round >= ROUND_COUNT) return { ...state, phase: "summary" };
       return { ...state, phase: "briefing", round: (state.round + 1) as RoundId, results: null, error: null };
+
+    case "RETRY_ROUND":
+      if (state.phase !== "results" || !state.results) return state;
+      return {
+        ...state,
+        phase: "configuring",
+        score: state.score - state.results.xp,
+        history: state.history.slice(0, -1),
+        results: null,
+        firing: emptyFiring(),
+      };
 
     case "RESTART":
       if (state.phase !== "summary") return state;

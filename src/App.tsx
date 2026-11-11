@@ -9,8 +9,6 @@ import { Header } from "./components/Header";
 import { LiveFiring } from "./components/LiveFiring";
 import { ResultsCard } from "./components/ResultsCard";
 import { Button } from "./components/ui/Button";
-import { ComponentGallery } from "./debug/ComponentGallery";
-import { DebugPanel } from "./debug/DebugPanel";
 import { crossCheck } from "./crossCheck";
 import { useServerHealth } from "./hooks/useServerHealth";
 import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, type RoundRun } from "./runRound";
@@ -168,7 +166,16 @@ function Game() {
 
         {state.phase === "results" && state.results && (
           <section className="section">
-            <ResultsCard result={state.results} scenario={scenario} isLastRound={state.round >= ROUND_COUNT} onNext={() => dispatch({ type: "NEXT_ROUND" })} />
+            <ResultsCard
+              result={state.results}
+              scenario={scenario}
+              isLastRound={state.round >= ROUND_COUNT}
+              onNext={() => dispatch({ type: "NEXT_ROUND" })}
+              onRetry={() => {
+                dispatch({ type: "RETRY_ROUND" });
+                window.scrollTo({ top: 0 });
+              }}
+            />
           </section>
         )}
 
@@ -182,10 +189,7 @@ function Game() {
   );
 }
 
-// Dev-only tools: #debug (plumbing and round harness) and #gallery (UI primitives). Reload after changing the hash.
 function App() {
-  if (import.meta.env.DEV && window.location.hash === "#debug") return <DebugPanel />;
-  if (import.meta.env.DEV && window.location.hash === "#gallery") return <ComponentGallery />;
   return <Game />;
 }
 

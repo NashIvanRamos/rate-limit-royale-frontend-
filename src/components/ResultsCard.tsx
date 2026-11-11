@@ -14,6 +14,8 @@ interface ResultsCardProps {
   scenario: Scenario;
   isLastRound: boolean;
   onNext: () => void;
+  /** Replay this round with a different defense. Replaces this attempt's XP. */
+  onRetry: () => void;
 }
 
 type TileTone = "accepted" | "blocked" | "auth" | "neutral";
@@ -76,7 +78,7 @@ function verdict(r: RoundResult): string {
 }
 
 /** Every number here comes from tally() and score() of a real run. */
-export function ResultsCard({ result, scenario, isLastRound, onNext }: ResultsCardProps) {
+export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: ResultsCardProps) {
   const t = result.tally;
   const ref = useRef<HTMLElement>(null);
   const reduceMotion = usePrefersReducedMotion();
@@ -182,9 +184,14 @@ export function ResultsCard({ result, scenario, isLastRound, onNext }: ResultsCa
         </span>
       </div>
 
-      <Button variant="primary" fullWidth onClick={onNext}>
-        {isLastRound ? "See final summary" : "Next round"}
-      </Button>
+      <div className="stack" style={{ gap: 8 }}>
+        <Button variant="primary" fullWidth onClick={onNext}>
+          {isLastRound ? "See final summary" : "Next round"}
+        </Button>
+        <Button variant="ghost" fullWidth onClick={onRetry}>
+          Retry this round with a different defense
+        </Button>
+      </div>
     </section>
   );
 }

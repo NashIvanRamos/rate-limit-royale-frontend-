@@ -73,7 +73,7 @@ export function KeysPanel({ scenario, config, byClient, serverKeys }: KeysPanelP
           <span className="num">
             <span className="tone-accepted">{passed} passed</span> · <span className="tone-blocked">{blocked} blocked</span>
           </span>
-          <span className="config__note">{blocked > 0 ? "Budget spent: every account behind this IP is blocked" : "Shared budget for all 50 accounts"}</span>
+          <span className="config__note">{blocked > 0 ? "Budget spent: every account behind this IP is blocked" : `Shared budget for all ${attackers.length} accounts`}</span>
         </div>
       )}
 

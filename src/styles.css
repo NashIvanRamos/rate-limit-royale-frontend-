@@ -167,31 +167,6 @@ input {
 .tone-preview { color: var(--preview); }
 .tone-neutral { color: var(--text); }
 
-/* ---------- Card ---------- */
-
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.card--accent-preview { border-left: 3px solid var(--preview); }
-.card--accent-blocked { border-left: 3px solid var(--blocked); }
-.card--accent-accepted { border-left: 3px solid var(--accepted); }
-.card--accent-auth { border-left: 3px solid var(--auth); }
-.card--accent-xp { border-left: 3px solid var(--xp); }
-
-.card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 /* ---------- Tag & pill ---------- */
 
 .tag {
@@ -640,28 +615,7 @@ input {
   color: var(--muted);
 }
 
-/* ---------- Metric row (results) ---------- */
-
-.metric-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.metric-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.metric-row:last-child { border-bottom: 0; }
-
-.metric-row__label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+/* ---------- Status chips (distribution bar) ---------- */
 
 .metric-row__chip {
   width: 10px;
@@ -669,9 +623,6 @@ input {
   border-radius: 3px;
   background: var(--muted);
 }
-
-.metric-row__value { font-size: 16px; font-weight: 650; }
-.metric-row__note { font-size: 12px; color: var(--muted); }
 
 .chip-accepted { background: var(--accepted); }
 .chip-blocked { background: var(--blocked); }
