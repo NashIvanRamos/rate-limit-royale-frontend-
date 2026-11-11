@@ -1,9 +1,10 @@
-import { useRef, type KeyboardEvent } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 
 export interface RadioCardOption<T extends string> {
   value: T;
   title: string;
   description: string;
+  icon?: ReactNode;
 }
 
 interface RadioCardsProps<T extends string> {
@@ -46,8 +47,10 @@ export function RadioCards<T extends string>({ label, options, value, onChange, 
             onClick={() => onChange(opt.value)}
             onKeyDown={(e) => onKeyDown(e, i)}
           >
+            {opt.icon && <span className="radio-card__icon">{opt.icon}</span>}
             <span className="radio-card__title">{opt.title}</span>
             <span className="radio-card__desc">{opt.description}</span>
+            {checked && <span className="radio-card__badge">Selected</span>}
           </button>
         );
       })}

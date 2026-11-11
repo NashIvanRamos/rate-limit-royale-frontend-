@@ -2,7 +2,7 @@
 // All timers are scheduled up front, so no request ever waits for another one to finish.
 
 import { apiRequest, CLIENT_ERRORS, type ResourceResponse } from "./api";
-import type { ClientSpec, RequestRecord, ScenarioEvent } from "./types";
+import type { ClientSpec, RequestRecord, ScenarioEvent, StatusCounts } from "./types";
 
 /** Running counts for the live firing view (task 13). Only statuses the game cares about. */
 export interface LiveCounts {
@@ -18,6 +18,8 @@ export interface FiringProgress {
   done: number;
   total: number;
   counts: LiveCounts;
+  /** Per client id, for the round 5 "50 keys vs 1 key" view. Fresh objects on every report. */
+  byClient: Record<string, StatusCounts>;
 }
 
 export interface RunScenarioOptions {
@@ -58,9 +60,16 @@ export function runScenario({
 
   const records: RequestRecord[] = [];
   const counts: LiveCounts = { s200: 0, s429: 0, s401: 0, errors: 0 };
+  const byClient = new Map<string, StatusCounts>();
   const total = events.length;
 
-  const emit = () => onProgress?.({ done: records.length, total, counts: { ...counts } });
+  const emit = () =>
+    onProgress?.({
+      done: records.length,
+      total,
+      counts: { ...counts },
+      byClient: Object.fromEntries([...byClient].map(([id, c]) => [id, { ...c }])),
+    });
 
   if (signal?.aborted || total === 0) {
     if (total === 0) onAllFired?.();
@@ -150,10 +159,18 @@ export function runScenario({
         }
         records.push(record);
 
-        if (record.status === 200) counts.s200 += 1;
-        else if (record.status === 429) counts.s429 += 1;
-        else if (record.status === 401) counts.s401 += 1;
-        else if (record.status === 0) counts.errors += 1;
+        let perClient = byClient.get(ev.clientId);
+        if (!perClient) byClient.set(ev.clientId, (perClient = { s200: 0, s429: 0, s401: 0 }));
+        if (record.status === 200) {
+          counts.s200 += 1;
+          perClient.s200 += 1;
+        } else if (record.status === 429) {
+          counts.s429 += 1;
+          perClient.s429 += 1;
+        } else if (record.status === 401) {
+          counts.s401 += 1;
+          perClient.s401 += 1;
+        } else if (record.status === 0) counts.errors += 1;
         throttledEmit();
       } finally {
         settleOne();

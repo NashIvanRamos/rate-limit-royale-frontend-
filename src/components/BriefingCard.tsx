@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { previewEvents } from "../runRound";
 import type { DefenseConfig, Scenario } from "../types";
 import { Button } from "./ui/Button";
-import { Card } from "./ui/Card";
 import { StatTile } from "./ui/StatTile";
 import { Tag } from "./ui/Tag";
 
@@ -24,28 +23,34 @@ function useBriefingStats(scenario: Scenario, config: DefenseConfig) {
   }, [scenario, config]);
 }
 
-/** Basic version (task 08). Styled in task 10. */
 export function BriefingCard({ scenario, config, onContinue }: BriefingCardProps) {
   const stats = useBriefingStats(scenario, config);
   const showHint = scenario.hint !== undefined && config.windowMs > 10_000;
 
   return (
-    <Card label={<Tag tone="blocked">Incoming attack</Tag>} aside={<span className="label">Wave {String(scenario.id).padStart(2, "0")}</span>}>
-      <h2>{scenario.name}</h2>
-      <p className="muted" style={{ margin: 0 }}>
-        {scenario.description}
-      </p>
-      <div className="stat-grid">
-        <StatTile label="Requests" value={stats.requests} />
-        <StatTile label={stats.clientIps === 1 ? "Client IP" : "Client IPs"} value={stats.clientIps} />
-        <StatTile label="Duration" value={stats.durationS} unit="s" />
+    <article className="briefing" aria-labelledby="briefing-title">
+      <div className="row spread">
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          <Tag tone="blocked">Incoming attack</Tag>
+          {scenario.id === 5 && <Tag tone="xp">Boss wave</Tag>}
+        </div>
+        <span className="label">Wave {String(scenario.id).padStart(2, "0")}</span>
       </div>
-      {showHint && <p className="tone-preview" style={{ margin: 0 }}>{scenario.hint}</p>}
+      <h2 id="briefing-title" className="briefing__title">
+        {scenario.name}
+      </h2>
+      <p className="briefing__desc">{scenario.description}</p>
+      <div className="stat-grid">
+        <StatTile label="Requests" value={stats.requests.toLocaleString("en-US")} />
+        <StatTile label={stats.clientIps === 1 ? "Client IP" : "Client IPs"} value={stats.clientIps} />
+        <StatTile label="Duration" value={`${stats.durationS}s`} />
+      </div>
+      {showHint && <p className="briefing__hint">{scenario.hint}</p>}
       {onContinue && (
         <Button variant="primary" fullWidth onClick={onContinue}>
-          Continue
+          Continue to defense setup
         </Button>
       )}
-    </Card>
+    </article>
   );
 }

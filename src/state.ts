@@ -8,7 +8,7 @@
 import type { StageEvent, Stage } from "./runRound";
 import type { FiringProgress, LiveCounts } from "./scheduler";
 import { ROUND_COUNT } from "./scenarios";
-import { CONFIG_LIMITS, type DefenseConfig, type RoundId, type RoundResult, type ValidationIssue } from "./types";
+import { CONFIG_LIMITS, type DefenseConfig, type RoundId, type RoundResult, type StatusCounts, type ValidationIssue } from "./types";
 
 export type Phase = "briefing" | "configuring" | "firing" | "results" | "summary";
 
@@ -21,6 +21,8 @@ export interface FiringState {
   done: number;
   total: number;
   counts: LiveCounts;
+  /** Live per-client counts (round 5's keys panel). */
+  byClient: Record<string, StatusCounts>;
   /** waiting-boundary only: Date.now() time the first attacker request fires. */
   firesAt?: number;
 }
@@ -72,6 +74,7 @@ const emptyFiring = (): FiringState => ({
   done: 0,
   total: 0,
   counts: { s200: 0, s429: 0, s401: 0, errors: 0 },
+  byClient: {},
 });
 
 export const initialState: State = {
@@ -127,8 +130,8 @@ export function reducer(state: State, action: Action): State {
 
     case "FIRING_PROGRESS": {
       if (state.phase !== "firing") return state;
-      const { done, total, counts } = action.progress;
-      return { ...state, firing: { ...state.firing, done, total, counts } };
+      const { done, total, counts, byClient } = action.progress;
+      return { ...state, firing: { ...state.firing, done, total, counts, byClient } };
     }
 
     case "ROUND_COMPLETE":

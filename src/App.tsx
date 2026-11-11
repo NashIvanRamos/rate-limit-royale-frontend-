@@ -1,20 +1,22 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { BriefingCard } from "./components/BriefingCard";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { DefensePreview } from "./components/DefensePreview";
 import { DeployButton } from "./components/DeployButton";
-import { ErrorBanner, OfflineBanner } from "./components/ErrorBanner";
+import { ErrorBanner, OfflineBanner, TabHiddenBanner } from "./components/ErrorBanner";
 import { FinalSummary } from "./components/FinalSummary";
 import { Header } from "./components/Header";
+import { LiveFiring } from "./components/LiveFiring";
 import { ResultsCard } from "./components/ResultsCard";
+import { Button } from "./components/ui/Button";
 import { ComponentGallery } from "./debug/ComponentGallery";
 import { DebugPanel } from "./debug/DebugPanel";
 import { useServerHealth } from "./hooks/useServerHealth";
-import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError } from "./runRound";
-import { ROUND_COUNT, scenarioFor } from "./scenarios";
+import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, type RoundRun } from "./runRound";
+import { edgeExploitTiming, ROUND_COUNT, scenarioFor } from "./scenarios";
 import { score, tally } from "./scoring";
 import { initialState, reducer, type AppError } from "./state";
-import type { DefenseConfig } from "./types";
+import type { BoundaryTimeline, DefenseConfig, Scenario } from "./types";
 
 /** Maps a runRound failure to what the player sees. null = aborted on purpose (no message). */
 function toAppError(err: unknown): AppError | null {
@@ -34,6 +36,19 @@ function toAppError(err: unknown): AppError | null {
   return { kind: "unknown", message: err instanceof Error ? err.message : String(err) };
 }
 
+/**
+ * Round 2: each attacker request relative to the boundary its bursts aimed at. Uses the server's
+ * servedAt when present (200s); otherwise the midpoint of the request (same machine, same clock).
+ */
+function boundaryTimeline(run: RoundRun, scenario: Scenario): BoundaryTimeline {
+  const { boundary } = edgeExploitTiming(run.deployed.config, run.deployed.windowEpochMs, run.startAt);
+  const attackers = new Set(scenario.clients.filter((c) => !c.legit).map((c) => c.id));
+  const points = run.records
+    .filter((r) => attackers.has(r.clientId))
+    .map((r) => ({ t: Math.round((r.servedAt ?? run.startAt + r.sentAt + r.latencyMs / 2) - boundary), status: r.status }));
+  return { points };
+}
+
 function Game() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const controllerRef = useRef<AbortController | null>(null);
@@ -47,6 +62,17 @@ function Game() {
   const scenario = scenarioFor(state.round);
   const isFiring = state.phase === "firing";
 
+  // Background tabs throttle timers: warn if the tab is hidden while a round is firing.
+  const [tabWarning, setTabWarning] = useState(false);
+  useEffect(() => {
+    if (!isFiring) return;
+    const onVisibility = () => {
+      if (document.hidden) setTabWarning(true);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [isFiring]);
+
   // Started only from this click handler, never from an effect (StrictMode runs effects twice).
   async function handleDeploy() {
     if (controllerRef.current || state.phase !== "configuring" || state.serverOnline !== true) return;
@@ -54,6 +80,7 @@ function Game() {
     controllerRef.current = ac;
     const round = state.round;
     const config = state.config;
+    setTabWarning(false);
     dispatch({ type: "DEPLOY_START" });
     try {
       const run = await runRound({
@@ -67,7 +94,8 @@ function Game() {
       // Lost requests make the round's numbers incomplete: don't score it.
       if (t.errors > 0) throw new OfflineError(`Lost the backend mid-round: ${t.errors} of ${t.total} requests failed. No XP recorded.`);
       const s = score(t, run.deployed.config, run.events, scenario, { startAt: run.startAt, windowEpochMs: run.deployed.windowEpochMs });
-      dispatch({ type: "ROUND_COMPLETE", result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs } });
+      const timeline = scenario.id === 2 ? boundaryTimeline(run, scenario) : undefined;
+      dispatch({ type: "ROUND_COMPLETE", result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline } });
     } catch (err) {
       dispatch({ type: "ROUND_FAILED", error: toAppError(err) });
     } finally {
@@ -76,29 +104,75 @@ function Game() {
   }
 
   const setConfig = (config: Partial<DefenseConfig>) => dispatch({ type: "SET_CONFIG", config });
+  /** Back to configuring with no XP and no history entry (runRound throws RoundAbortedError). */
+  const abortRound = () => controllerRef.current?.abort();
+  const dismissError = () => dispatch({ type: "DISMISS_ERROR" });
+  const showConfig = state.phase === "configuring" || state.phase === "firing";
+
+  // Notices go right above the deploy button while it's on screen (the page is long, and that's where
+  // the player is looking after clicking Deploy); otherwise at the top.
+  const notices = (
+    <>
+      {state.serverOnline === false && <OfflineBanner />}
+      {state.error && (
+        <ErrorBanner
+          error={state.error}
+          onDismiss={dismissError}
+          onRetry={state.error.kind === "setup" && state.phase === "configuring" ? handleDeploy : undefined}
+          retryDisabled={state.serverOnline !== true}
+        />
+      )}
+      {tabWarning && <TabHiddenBanner onDismiss={() => setTabWarning(false)} />}
+    </>
+  );
 
   return (
     <main className="app">
-      <Header round={state.round} score={state.score} serverOnline={state.serverOnline} />
-      {state.serverOnline === false && <OfflineBanner />}
-      {state.error && <ErrorBanner error={state.error} onDismiss={() => dispatch({ type: "DISMISS_ERROR" })} />}
+      {!showConfig && notices}
 
-      {state.phase === "briefing" && <BriefingCard scenario={scenario} config={state.config} onContinue={() => dispatch({ type: "CONTINUE" })} />}
+      <div className="shell">
+        <section className="hero">
+          <Header round={state.round} score={state.score} serverOnline={state.serverOnline} />
+          {state.phase !== "summary" && (
+            <BriefingCard
+              scenario={scenario}
+              config={state.config}
+              onContinue={state.phase === "briefing" ? () => dispatch({ type: "CONTINUE" }) : undefined}
+            />
+          )}
+        </section>
 
-      {(state.phase === "configuring" || state.phase === "firing") && (
-        <>
-          <BriefingCard scenario={scenario} config={state.config} />
-          <ConfigPanel config={state.config} onChange={setConfig} disabled={isFiring} />
-          <DefensePreview config={state.config} />
-          <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
-        </>
-      )}
+        {(state.phase === "configuring" || state.phase === "firing" || state.phase === "results") && (
+          <section className="section">
+            <ConfigPanel config={state.config} onChange={setConfig} disabled={state.phase !== "configuring"} />
+            <DefensePreview config={state.config} />
+            {showConfig && notices}
+            {state.phase !== "results" && (
+              <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
+            )}
+            {isFiring && (
+              <>
+                <LiveFiring firing={state.firing} scenario={scenario} config={state.config} />
+                <Button variant="ghost" fullWidth onClick={abortRound}>
+                  Abort round
+                </Button>
+              </>
+            )}
+          </section>
+        )}
 
-      {state.phase === "results" && state.results && (
-        <ResultsCard result={state.results} scenario={scenario} isLastRound={state.round >= ROUND_COUNT} onNext={() => dispatch({ type: "NEXT_ROUND" })} />
-      )}
+        {state.phase === "results" && state.results && (
+          <section className="section">
+            <ResultsCard result={state.results} scenario={scenario} isLastRound={state.round >= ROUND_COUNT} onNext={() => dispatch({ type: "NEXT_ROUND" })} />
+          </section>
+        )}
 
-      {state.phase === "summary" && <FinalSummary history={state.history} score={state.score} onRestart={() => dispatch({ type: "RESTART" })} />}
+        {state.phase === "summary" && (
+          <section className="section">
+            <FinalSummary history={state.history} score={state.score} onRestart={() => dispatch({ type: "RESTART" })} />
+          </section>
+        )}
+      </div>
     </main>
   );
 }

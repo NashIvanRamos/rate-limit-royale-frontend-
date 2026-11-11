@@ -1,7 +1,7 @@
+import { shortConfig } from "../labels";
 import { scenarioFor } from "../scenarios";
-import type { DefenseConfig, RoundResult } from "../types";
+import type { RoundResult } from "../types";
 import { Button } from "./ui/Button";
-import { Card } from "./ui/Card";
 
 interface FinalSummaryProps {
   history: RoundResult[];
@@ -9,45 +9,64 @@ interface FinalSummaryProps {
   onRestart: () => void;
 }
 
-const shortConfig = (c: DefenseConfig) => `${c.algorithm} · ${c.maxRequests}/${c.windowMs / 1000}s · ${c.keyBy}`;
-
-/** Basic version (task 08). Styled in task 11. */
 export function FinalSummary({ history, score, onRestart }: FinalSummaryProps) {
+  const cleared = history.filter((r) => r.cleared).length;
   return (
-    <Card label="Final summary" aside={<span className="num tone-xp">{score.toLocaleString()} XP</span>}>
-      <div style={{ overflowX: "auto" }}>
-        <table className="num" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+    <section className="stack" style={{ gap: 20 }} aria-labelledby="summary-title">
+      <div className="row spread" style={{ alignItems: "flex-end" }}>
+        <div className="stack" style={{ gap: 4 }}>
+          <h2 id="summary-title" className="section__title">
+            Final summary
+          </h2>
+          <p className="section__sub">
+            {cleared} of {history.length} rounds cleared.
+          </p>
+        </div>
+        <div className="stack" style={{ gap: 2, alignItems: "flex-end" }}>
+          <span className="label">Total score</span>
+          <span className="scoreline__value scoreline__value--xp num">{score.toLocaleString("en-US")} XP</span>
+        </div>
+      </div>
+
+      <div className="table-wrap">
+        <table className="summary-table">
           <thead>
-            <tr className="label" style={{ textAlign: "left" }}>
-              <th>#</th>
-              <th>Round</th>
-              <th>Config</th>
-              <th>200/429/401</th>
-              <th>Legit blocks</th>
-              <th>XP</th>
-              <th>Cleared</th>
+            <tr>
+              <th scope="col">Round</th>
+              <th scope="col" className="summary-table__config">Config</th>
+              <th scope="col" className="num-col">200 / 429 / 401</th>
+              <th scope="col" className="num-col" title="Legitimate requests blocked">Legit</th>
+              <th scope="col" className="num-col">XP</th>
+              <th scope="col" className="num-col">
+                <span className="visually-hidden">Result</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {history.map((r) => (
               <tr key={r.round}>
-                <td>{r.round}</td>
-                <td>{scenarioFor(r.round).name}</td>
-                <td>{shortConfig(r.config)}</td>
-                <td>
-                  {r.tally.accepted}/{r.tally.blocked}/{r.tally.rejectedAuth}
+                <td className="summary-table__name">
+                  <span className="num muted">{String(r.round).padStart(2, "0")}</span> {scenarioFor(r.round).name}
                 </td>
-                <td>{r.tally.legitBlocks}</td>
-                <td className="tone-xp">{r.xp}</td>
-                <td className={r.cleared ? "tone-accepted" : "tone-blocked"}>{r.cleared ? "✓" : "✗"}</td>
+                <td className="num summary-table__config">{shortConfig(r.config)}</td>
+                <td className="num num-col">
+                  <span className="tone-accepted">{r.tally.accepted}</span> / <span className="tone-blocked">{r.tally.blocked}</span> /{" "}
+                  <span className="tone-auth">{r.tally.rejectedAuth}</span>
+                </td>
+                <td className={`num num-col ${r.tally.legitBlocks > 0 ? "tone-blocked" : ""}`}>{r.tally.legitBlocks}</td>
+                <td className="num num-col tone-xp">{r.xp}</td>
+                <td className={`num-col ${r.cleared ? "tone-accepted" : "tone-blocked"}`} aria-label={r.cleared ? "Cleared" : "Breached"}>
+                  {r.cleared ? "✓" : "✗"}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
       <Button variant="primary" fullWidth onClick={onRestart}>
         Play again
       </Button>
-    </Card>
+    </section>
   );
 }

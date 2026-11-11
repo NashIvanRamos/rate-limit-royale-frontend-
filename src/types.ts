@@ -123,6 +123,12 @@ export interface Tally {
   byPath: Record<ApiPath, StatusCounts>;
 }
 
+/** Round 2: attacker requests around the window boundary the bursts aimed at. */
+export interface BoundaryTimeline {
+  /** One per attacker request: ms relative to the boundary (negative = before) and its status. */
+  points: Array<{ t: number; status: number }>;
+}
+
 export interface RoundResult {
   round: RoundId;
   config: DefenseConfig;
@@ -132,4 +138,5 @@ export interface RoundResult {
   containment: number;
   allowance: number;
   durationMs: number;
+  timeline?: BoundaryTimeline;
 }
