@@ -6,16 +6,17 @@ import { DeployButton } from "./components/DeployButton";
 import { ErrorBanner, OfflineBanner, TabHiddenBanner } from "./components/ErrorBanner";
 import { FinalSummary } from "./components/FinalSummary";
 import { Header } from "./components/Header";
+import { LiveFiring } from "./components/LiveFiring";
 import { ResultsCard } from "./components/ResultsCard";
 import { Button } from "./components/ui/Button";
 import { ComponentGallery } from "./debug/ComponentGallery";
 import { DebugPanel } from "./debug/DebugPanel";
 import { useServerHealth } from "./hooks/useServerHealth";
-import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError } from "./runRound";
-import { ROUND_COUNT, scenarioFor } from "./scenarios";
+import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, type RoundRun } from "./runRound";
+import { edgeExploitTiming, ROUND_COUNT, scenarioFor } from "./scenarios";
 import { score, tally } from "./scoring";
 import { initialState, reducer, type AppError } from "./state";
-import type { DefenseConfig } from "./types";
+import type { BoundaryTimeline, DefenseConfig, Scenario } from "./types";
 
 /** Maps a runRound failure to what the player sees. null = aborted on purpose (no message). */
 function toAppError(err: unknown): AppError | null {
@@ -33,6 +34,19 @@ function toAppError(err: unknown): AppError | null {
     return { kind: "setup", message: `Couldn't log in ${err.username} (${err.status}). Redeploy to reset lockouts.` };
   }
   return { kind: "unknown", message: err instanceof Error ? err.message : String(err) };
+}
+
+/**
+ * Round 2: each attacker request relative to the boundary its bursts aimed at. Uses the server's
+ * servedAt when present (200s); otherwise the midpoint of the request (same machine, same clock).
+ */
+function boundaryTimeline(run: RoundRun, scenario: Scenario): BoundaryTimeline {
+  const { boundary } = edgeExploitTiming(run.deployed.config, run.deployed.windowEpochMs, run.startAt);
+  const attackers = new Set(scenario.clients.filter((c) => !c.legit).map((c) => c.id));
+  const points = run.records
+    .filter((r) => attackers.has(r.clientId))
+    .map((r) => ({ t: Math.round((r.servedAt ?? run.startAt + r.sentAt + r.latencyMs / 2) - boundary), status: r.status }));
+  return { points };
 }
 
 function Game() {
@@ -80,7 +94,8 @@ function Game() {
       // Lost requests make the round's numbers incomplete: don't score it.
       if (t.errors > 0) throw new OfflineError(`Lost the backend mid-round: ${t.errors} of ${t.total} requests failed. No XP recorded.`);
       const s = score(t, run.deployed.config, run.events, scenario, { startAt: run.startAt, windowEpochMs: run.deployed.windowEpochMs });
-      dispatch({ type: "ROUND_COMPLETE", result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs } });
+      const timeline = scenario.id === 2 ? boundaryTimeline(run, scenario) : undefined;
+      dispatch({ type: "ROUND_COMPLETE", result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline } });
     } catch (err) {
       dispatch({ type: "ROUND_FAILED", error: toAppError(err) });
     } finally {
@@ -136,9 +151,12 @@ function Game() {
               <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
             )}
             {isFiring && (
-              <Button variant="ghost" fullWidth onClick={abortRound}>
-                Abort round
-              </Button>
+              <>
+                <LiveFiring firing={state.firing} scenario={scenario} config={state.config} />
+                <Button variant="ghost" fullWidth onClick={abortRound}>
+                  Abort round
+                </Button>
+              </>
             )}
           </section>
         )}

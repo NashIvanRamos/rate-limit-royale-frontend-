@@ -2,6 +2,9 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { SCORING } from "../scoring";
 import type { RoundResult, Scenario, Tally } from "../types";
+import { BoundaryTimeline } from "./BoundaryTimeline";
+import { KeysPanel } from "./KeysPanel";
+import { CountUp } from "./ui/CountUp";
 import { Button } from "./ui/Button";
 import { DistributionBar } from "./ui/DistributionBar";
 import { Icon } from "./ui/Icon";
@@ -73,14 +76,14 @@ export function ResultsCard({ result, scenario, isLastRound, onNext }: ResultsCa
       </h2>
 
       <div className={show401 ? "result-grid result-grid--3" : "result-grid"}>
-        <ResultTile label="Successful (200)" tone="accepted" value={t.accepted} />
-        <ResultTile label="Blocked (429)" tone="blocked" value={t.blocked} />
-        {show401 && <ResultTile label="Rejected auth (401)" tone="auth" value={t.rejectedAuth} />}
-        <ResultTile label="Avg latency" value={`${Math.round(t.avgLatencyMs)}ms`} />
+        <ResultTile label="Successful (200)" tone="accepted" value={<CountUp value={t.accepted} className="" />} />
+        <ResultTile label="Blocked (429)" tone="blocked" value={<CountUp value={t.blocked} className="" />} />
+        {show401 && <ResultTile label="Rejected auth (401)" tone="auth" value={<CountUp value={t.rejectedAuth} className="" />} />}
+        <ResultTile label="Avg latency" value={<CountUp value={Math.round(t.avgLatencyMs)} format={(n) => `${n}ms`} className="" />} />
         <ResultTile
           label="Legitimate blocks"
           tone={t.legitBlocks > 0 ? "blocked" : "accepted"}
-          value={t.legitBlocks}
+          value={<CountUp value={t.legitBlocks} className="" />}
           note={t.legitExpired > 0 ? `Expired-token legit: ${t.legitExpired} (not penalised)` : undefined}
         />
         {t.errors > 0 && <ResultTile label="Network errors" value={t.errors} />}
@@ -111,6 +114,20 @@ export function ResultsCard({ result, scenario, isLastRound, onNext }: ResultsCa
         </div>
       </div>
 
+      {result.timeline && (
+        <div className="stack" style={{ gap: 10 }}>
+          <h3 className="results__subtitle">Attack around the window boundary</h3>
+          <BoundaryTimeline timeline={result.timeline} />
+        </div>
+      )}
+
+      {scenario.id === 5 && (
+        <div className="stack" style={{ gap: 10 }}>
+          <h3 className="results__subtitle">Rate limit keys</h3>
+          <KeysPanel scenario={scenario} config={result.config} byClient={t.byClient} />
+        </div>
+      )}
+
       {reasons.length > 0 && (
         <div className="stack" style={{ gap: 6 }}>
           <h3 className="results__subtitle">Why requests were stopped</h3>
@@ -132,7 +149,9 @@ export function ResultsCard({ result, scenario, isLastRound, onNext }: ResultsCa
         </div>
         <p className="outcome__text">{verdict(result)}</p>
         <p className="outcome__lesson">Lesson: {scenario.lesson}</p>
-        <span className="outcome__xp num">+{result.xp} XP</span>
+        <span className="outcome__xp num">
+          +<CountUp value={result.xp} className="" /> XP
+        </span>
       </div>
 
       <Button variant="primary" fullWidth onClick={onNext}>

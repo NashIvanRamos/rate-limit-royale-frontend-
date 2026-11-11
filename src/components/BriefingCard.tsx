@@ -30,7 +30,10 @@ export function BriefingCard({ scenario, config, onContinue }: BriefingCardProps
   return (
     <article className="briefing" aria-labelledby="briefing-title">
       <div className="row spread">
-        <Tag tone="blocked">Incoming attack</Tag>
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          <Tag tone="blocked">Incoming attack</Tag>
+          {scenario.id === 5 && <Tag tone="xp">Boss wave</Tag>}
+        </div>
         <span className="label">Wave {String(scenario.id).padStart(2, "0")}</span>
       </div>
       <h2 id="briefing-title" className="briefing__title">
