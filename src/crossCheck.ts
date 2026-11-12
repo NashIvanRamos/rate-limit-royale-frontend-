@@ -6,7 +6,8 @@ import type { CrossCheck, DefenseConfig, Scenario, StatusCounts, Tally } from ".
 
 const same = (a: StatusCounts, b: StatusCounts) => a.s200 === b.s200 && a.s429 === b.s429 && a.s401 === b.s401;
 
-export function crossCheck(t: Tally, server: StatsResponse, scenario: Scenario, config: DefenseConfig): CrossCheck {
+/** `nodes`: how many cluster nodes' stats were summed into `server` (1 = a single /api/stats). */
+export function crossCheck(t: Tally, server: StatsResponse, scenario: Scenario, config: DefenseConfig, nodes = 1): CrossCheck {
   const resourceClient = t.byPath["/api/resource"];
   const resourceServer: StatusCounts = { s200: server.resource.s200, s429: server.resource.s429, s401: server.resource.s401 };
 
@@ -27,6 +28,7 @@ export function crossCheck(t: Tally, server: StatsResponse, scenario: Scenario, 
     resource: { client: { ...resourceClient }, server: resourceServer, match: same(resourceClient, resourceServer) },
     login: sentLogins ? { client: { ...loginClient }, server: loginServer, match: same(loginClient, loginServer) } : undefined,
     trackedKeys: server.trackedKeys,
+    nodes,
     legitKeys,
   };
 }

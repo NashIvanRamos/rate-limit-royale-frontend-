@@ -169,6 +169,13 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
+/** Cluster nodes the dev proxy can reach directly (API_NODES in vite.config.ts). 0 = none configured. */
+// `typeof` keeps this safe outside Vite (tests, scripts), where the define doesn't exist.
+export const API_NODE_COUNT: number = typeof __API_NODE_COUNT__ === "number" ? __API_NODE_COUNT__ : 0;
+
+/** Control-plane path: through API_TARGET, or straight to cluster node `node` (1-based) via /__node/<i>. */
+const controlPath = (path: string, node?: number) => (node ? `/__node/${node}${path}` : path);
+
 /** Demo password convention. The only place it's defined on the frontend. */
 export const passwordFor = (username: string): string => `pass-${username}`;
 
@@ -192,14 +199,14 @@ export function getDefense(signal?: AbortSignal) {
  * Sends exactly the four fields (the server rejects unknown ones). Values are NOT clamped here: the UI
  * clamps, and a bad value must surface as the server's 400 `details[]`.
  */
-export function deploy(config: DefenseConfig, signal?: AbortSignal) {
+export function deploy(config: DefenseConfig, signal?: AbortSignal, node?: number) {
   const body: DefenseConfig = {
     algorithm: config.algorithm,
     maxRequests: config.maxRequests,
     windowMs: config.windowMs,
     keyBy: config.keyBy,
   };
-  return apiRequest<DefenseSnapshot>("/api/defense", { method: "POST", body, signal });
+  return apiRequest<DefenseSnapshot>(controlPath("/api/defense", node), { method: "POST", body, signal });
 }
 
 /** POST /api/login. 401 invalid_credentials, or 429 once the IP has 5 failures in 60s. */
@@ -220,8 +227,8 @@ export function resource(token: string | undefined, ip: string, signal?: AbortSi
 }
 
 /** GET /api/stats: never rate limited, reset on every deploy. 404 on backends without it. */
-export function stats(signal?: AbortSignal) {
-  return apiRequest<StatsResponse>("/api/stats", { signal });
+export function stats(signal?: AbortSignal, node?: number) {
+  return apiRequest<StatsResponse>(controlPath("/api/stats", node), { signal });
 }
 
 // ─── Headers ─────────────────────────────────────────────────────────────────

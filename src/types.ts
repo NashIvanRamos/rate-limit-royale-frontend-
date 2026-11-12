@@ -94,6 +94,8 @@ export interface RequestRecord extends ScenarioEvent {
   servedAt?: number;
   /** Actual ms from the start of firing when the request left (timers drift, so this isn't `at`). */
   sentAt: number;
+  /** X-Node-Id of the backend node that answered ("single" on one node). */
+  nodeId?: string;
   /** Served with `X-RateLimit-Degraded: true`: the limiter's store was down and the request was not rate limited. */
   degraded?: true;
 }
@@ -125,6 +127,12 @@ export interface Tally {
   byClient: Record<string, StatusCounts>;
   /** Per endpoint, so login 429s (credential stuffing) stay distinct from resource 429s. */
   byPath: Record<ApiPath, StatusCounts>;
+  /** Answered requests per backend node (X-Node-Id). One key ("single") on a single node. */
+  byNode: Record<string, number>;
+  /** Attacker requests per backend node: the scaling story (spread by round robin, pinned by sticky routing). */
+  attackByNode: Record<string, number>;
+  /** Attacker requests that passed (200), per backend node. */
+  attackPassedByNode: Record<string, number>;
 }
 
 /** Round 2: attacker requests around the window boundary the bursts aimed at. */
@@ -140,6 +148,8 @@ export interface CrossCheck {
   login?: { client: StatusCounts; server: StatusCounts; match: boolean };
   /** Limiter keys the server holds, and how many of them belong to legit clients. */
   trackedKeys: number;
+  /** Stats summed over this many cluster nodes (memory-mode cluster). 1 = a single /api/stats. */
+  nodes: number;
   legitKeys: number;
 }
 
@@ -156,4 +166,6 @@ export interface RoundResult {
   crossCheck?: CrossCheck;
   /** Why there's no cross-check, e.g. a memory-mode cluster where one node's stats are only its own slice. */
   crossCheckNote?: string;
+  /** Set when the round ran behind a load balancer (X-Node-Id other than "single"). */
+  cluster?: { store: "memory" | "redis" };
 }

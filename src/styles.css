@@ -801,6 +801,18 @@ input {
   color: var(--text-strong);
 }
 
+/* ---------- Round 5 scaling panel ---------- */
+
+.scaling {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
 /* ---------- Round 2 timeline ---------- */
 
 .timeline { display: flex; flex-direction: column; gap: 6px; }

@@ -39,6 +39,9 @@ export function tally(records: RequestRecord[]): Tally {
     degraded: 0,
     byReason: {},
     byClient: {},
+    byNode: {},
+    attackByNode: {},
+    attackPassedByNode: {},
     byPath: { "/api/resource": emptyCounts(), "/api/login": emptyCounts() } satisfies Record<ApiPath, StatusCounts>,
   };
 
@@ -53,6 +56,11 @@ export function tally(records: RequestRecord[]): Tally {
     else if (status === 401) t.rejectedAuth += 1;
     else if (isError(status)) t.errors += 1;
     if (r.degraded) t.degraded += 1;
+    if (r.nodeId) {
+      t.byNode[r.nodeId] = (t.byNode[r.nodeId] ?? 0) + 1;
+      if (!legit) t.attackByNode[r.nodeId] = (t.attackByNode[r.nodeId] ?? 0) + 1;
+      if (!legit && status === 200) t.attackPassedByNode[r.nodeId] = (t.attackPassedByNode[r.nodeId] ?? 0) + 1;
+    }
 
     if (legit) {
       if (status === 429) t.legitBlocks += 1;

@@ -2,6 +2,7 @@
 // The debug panel and the real UI both use this, so there is one code path for a round.
 
 import {
+  API_NODE_COUNT,
   CLIENT_ERRORS,
   deploy,
   expiredToken,
@@ -10,6 +11,7 @@ import {
   stats,
   type ApiResult,
   type DefenseSnapshot,
+  type LimiterStore,
   type StatsResponse,
 } from "./api";
 import { runScenario, type FiringProgress } from "./scheduler";
@@ -104,6 +106,47 @@ export interface RunRoundOptions {
   onStage?: (event: StageEvent) => void;
   onProgress?: (progress: FiringProgress) => void;
   signal?: AbortSignal;
+  /** What the health check reported. On a memory-mode cluster with known nodes, deploy and stats fan out. */
+  server?: { nodeId?: string; store?: LimiterStore };
+}
+
+/**
+ * A memory-mode cluster keeps state per node, and a deploy through the load balancer reaches only one node.
+ * With the node addresses known (API_NODES), deploy to every node and add up their stats, like the backend's
+ * own `npm run experiment`. In Redis mode one deploy and one /api/stats already cover the whole cluster.
+ */
+export function controlFanOut(server?: RunRoundOptions["server"]): number {
+  const memoryCluster = server?.store === "memory" && server.nodeId !== undefined && server.nodeId !== "single";
+  return memoryCluster ? API_NODE_COUNT : 0;
+}
+
+/** Adds up per-node stats (memory-mode cluster: each node only counts its own traffic). */
+function sumStats(all: StatsResponse[]): StatsResponse {
+  const sum = (pick: (s: StatsResponse) => number) => all.reduce((n, s) => n + pick(s), 0);
+  const byReason: Record<string, number> = {};
+  for (const s of all) for (const [k, v] of Object.entries(s.resource.byReason)) byReason[k] = (byReason[k] ?? 0) + v;
+  return {
+    nodeId: `sum of ${all.length} nodes`,
+    store: all[0]?.store,
+    since: Math.min(...all.map((s) => s.since)),
+    resource: {
+      total: sum((s) => s.resource.total),
+      s200: sum((s) => s.resource.s200),
+      s401: sum((s) => s.resource.s401),
+      s429: sum((s) => s.resource.s429),
+      other: sum((s) => s.resource.other),
+      byReason,
+    },
+    login: {
+      total: sum((s) => s.login.total),
+      s200: sum((s) => s.login.s200),
+      s400: sum((s) => s.login.s400),
+      s401: sum((s) => s.login.s401),
+      s429: sum((s) => s.login.s429),
+      other: sum((s) => s.login.other),
+    },
+    trackedKeys: sum((s) => s.trackedKeys),
+  };
 }
 
 export interface RoundRun {
@@ -117,6 +160,8 @@ export interface RoundRun {
   durationMs: number;
   /** The server's own tally after drain, for the cross-check. Undefined if unavailable. */
   serverStats?: StatsResponse;
+  /** Cluster nodes the deploy and stats fanned out to (0 = one deploy, one /api/stats). */
+  fanOut: number;
 }
 
 const clientMap = (clients: ClientSpec[]) => Object.fromEntries(clients.map((c) => [c.id, c]));
@@ -237,13 +282,18 @@ function sortEvents(events: ScenarioEvent[]): ScenarioEvent[] {
  * Throws DeployError, OfflineError, SetupError or RoundAbortedError. Nothing is fired unless deploy and
  * setup both succeed. Start it from a click handler only, never from an effect (StrictMode runs effects twice).
  */
-export async function runRound({ scenario, config, onStage, onProgress, signal }: RunRoundOptions): Promise<RoundRun> {
+export async function runRound({ scenario, config, onStage, onProgress, signal, server }: RunRoundOptions): Promise<RoundRun> {
   validateClients(scenario.clients);
   throwIfAborted(signal);
 
   // 1. Deploy. Always before setup: it clears the previous round's login lockouts.
   onStage?.({ stage: "deploying" });
-  const dep = await deploy(config, signal);
+  const fanOut = controlFanOut(server);
+  const nodes = Array.from({ length: fanOut }, (_, i) => i + 1);
+  // Fan-out: every node must accept the deploy. Report the first failure. The first node's snapshot (window
+  // epoch) is used for timing; the nodes deploy within a few ms of each other.
+  const deploys = fanOut > 0 ? await Promise.all(nodes.map((n) => deploy(config, signal, n))) : [await deploy(config, signal)];
+  const dep = deploys.find((d) => !d.ok) ?? deploys[0]!;
   if (!dep.ok) {
     if (isAborted(dep)) throw new RoundAbortedError();
     if (isNetwork(dep)) throw new OfflineError();
@@ -297,11 +347,13 @@ export async function runRound({ scenario, config, onStage, onProgress, signal }
 
   // 6. Server cross-check (optional). Every response has finished by now, so the server's counts are
   // complete. A failure here must never fail the round.
-  const statsRes = await stats(signal);
+  const statsRes = fanOut > 0 ? await Promise.all(nodes.map((n) => stats(signal, n))) : [await stats(signal)];
   throwIfAborted(signal);
-  const serverStats = statsRes.ok ? statsRes.data : undefined;
+  const okStats = statsRes.flatMap((r) => (r.ok ? [r.data] : []));
+  // Every node must answer, or a summed tally would be short.
+  const serverStats = okStats.length !== statsRes.length ? undefined : fanOut > 0 ? sumStats(okStats) : okStats[0];
 
-  return { records, events, deployed, startAt, durationMs, serverStats };
+  return { records, events, deployed, startAt, durationMs, serverStats, fanOut };
 }
 
 /**

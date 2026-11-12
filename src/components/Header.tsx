@@ -31,7 +31,14 @@ export function Header({ round, score, server }: HeaderProps) {
             <span className="label">API Defense Arena</span>
           </div>
         </div>
-        <StatusPill status={server.status} title={server.status === "degraded" ? degradedTitle(server) : undefined} />
+        <div className="row" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {server.nodeId && server.nodeId !== "single" && server.store && (
+            <span className="pill" title={`Behind a load balancer; this health check was answered by ${server.nodeId}.`}>
+              Cluster · {server.store}
+            </span>
+          )}
+          <StatusPill status={server.status} title={server.status === "degraded" ? degradedTitle(server) : undefined} />
+        </div>
       </div>
 
       <hr className="divider" />

@@ -3,7 +3,7 @@ import { BriefingCard } from "./components/BriefingCard";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { DefensePreview } from "./components/DefensePreview";
 import { DeployButton } from "./components/DeployButton";
-import { DegradedBanner, ErrorBanner, OfflineBanner, TabHiddenBanner } from "./components/ErrorBanner";
+import { ClusterDeployWarning, DegradedBanner, ErrorBanner, OfflineBanner, TabHiddenBanner } from "./components/ErrorBanner";
 import { FinalSummary } from "./components/FinalSummary";
 import { Header } from "./components/Header";
 import { LiveFiring } from "./components/LiveFiring";
@@ -11,6 +11,7 @@ import { ResultsCard } from "./components/ResultsCard";
 import { Button } from "./components/ui/Button";
 import { crossCheck } from "./crossCheck";
 import { useServerHealth } from "./hooks/useServerHealth";
+import { API_NODE_COUNT } from "./api";
 import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, StoreUnavailableError, type RoundRun } from "./runRound";
 import { edgeExploitTiming, ROUND_COUNT, scenarioFor } from "./scenarios";
 import { score, tally } from "./scoring";
@@ -92,6 +93,7 @@ function Game() {
     controllerRef.current = ac;
     const round = state.round;
     const config = state.config;
+    const server = state.server;
     setTabWarning(false);
     dispatch({ type: "DEPLOY_START" });
     try {
@@ -101,20 +103,24 @@ function Game() {
         signal: ac.signal,
         onStage: (event) => dispatch({ type: "FIRING_STAGE", event }),
         onProgress: (progress) => dispatch({ type: "FIRING_PROGRESS", progress }),
+        server,
       });
       const t = tally(run.records);
       // Failed requests (network or 5xx) make the round's numbers incomplete: don't score it.
       if (t.errors > 0) throw roundErrors(run, t.errors, t.total);
       const s = score(t, run.deployed.config, run.events, scenario, { startAt: run.startAt, windowEpochMs: run.deployed.windowEpochMs });
       const timeline = scenario.id === 2 ? boundaryTimeline(run, scenario) : undefined;
-      // On a memory-mode cluster one node's /api/stats is only that node's slice: comparing it would be a false mismatch.
+      // On a memory-mode cluster one node's /api/stats is only that node's slice: comparing it would be a false
+      // mismatch. With the nodes known (API_NODES), runRound sums every node's stats instead.
       const stats = run.serverStats;
-      const perNodeOnly = stats?.store === "memory" && stats.nodeId !== undefined && stats.nodeId !== "single";
-      const check = stats && !perNodeOnly ? crossCheck(t, stats, scenario, run.deployed.config) : undefined;
+      const perNodeOnly = run.fanOut === 0 && stats?.store === "memory" && stats.nodeId !== undefined && stats.nodeId !== "single";
+      const check = stats && !perNodeOnly ? crossCheck(t, stats, scenario, run.deployed.config, Math.max(1, run.fanOut)) : undefined;
       const crossCheckNote = perNodeOnly ? `Per-node stats (${stats.nodeId}): cross-check unavailable on a memory-mode cluster.` : undefined;
       dispatch({
         type: "ROUND_COMPLETE",
-        result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline, crossCheck: check, crossCheckNote },
+        result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline, crossCheck: check, crossCheckNote,
+          cluster: server.nodeId && server.nodeId !== "single" && server.store ? { store: server.store } : undefined,
+        },
       });
     } catch (err) {
       dispatch({ type: "ROUND_FAILED", error: toAppError(err) });
@@ -135,6 +141,9 @@ function Game() {
     <>
       {state.server.status === "offline" && <OfflineBanner />}
       {state.server.status === "degraded" && <DegradedBanner failureMode={state.server.failureMode} />}
+      {state.server.store === "memory" && state.server.nodeId !== undefined && state.server.nodeId !== "single" && API_NODE_COUNT === 0 && (
+        <ClusterDeployWarning />
+      )}
       {state.error && (
         <ErrorBanner
           error={state.error}
