@@ -36,9 +36,10 @@ const triple = (c: StatusCounts) => `${c.s200} / ${c.s429} / ${c.s401}`;
 function ServerCheck({ check }: { check: CrossCheck }) {
   const parts = [{ label: "", ...check.resource }, ...(check.login ? [{ label: "login ", ...check.login }] : [])];
   const allMatch = parts.every((p) => p.match);
+  const who = check.nodes > 1 ? `Server (sum of ${check.nodes} nodes)` : "Server";
   return (
     <p className={`results__server num ${allMatch ? "" : "tone-auth"}`}>
-      {allMatch ? "Server confirms: " : "Server: "}
+      {allMatch ? `${who} confirms: ` : `${who}: `}
       {parts.map((p, i) => (
         <span key={p.label}>
           {i > 0 && " · "}
@@ -117,6 +118,15 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: 
         </p>
         {result.crossCheck && <ServerCheck check={result.crossCheck} />}
         {result.crossCheckNote && <p className="results__server">{result.crossCheckNote}</p>}
+        {Object.keys(t.byNode).length > 1 && (
+          <p className="results__server num">
+            Served by:{" "}
+            {Object.entries(t.byNode)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([node, n]) => `${node} ${n}`)
+              .join(" · ")}
+          </p>
+        )}
         {t.degraded > 0 && (
           <p className="results__server tone-auth">
             {t.degraded} {t.degraded === 1 ? "request was" : "requests were"} served without rate limiting (Redis down, fail open).
@@ -159,7 +169,7 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: 
             scenario={scenario}
             config={result.config}
             byClient={t.byClient}
-            serverKeys={result.crossCheck && { tracked: result.crossCheck.trackedKeys, legit: result.crossCheck.legitKeys }}
+            serverKeys={result.crossCheck && { tracked: result.crossCheck.trackedKeys, legit: result.crossCheck.legitKeys, nodes: result.crossCheck.nodes }}
           />
         </div>
       )}

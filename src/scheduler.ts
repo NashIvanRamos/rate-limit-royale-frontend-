@@ -153,6 +153,8 @@ export function runScenario({
           latencyMs: performance.now() - start - sentAt,
           sentAt,
         };
+        const nodeId = result.headers.get("X-Node-Id");
+        if (nodeId) record.nodeId = nodeId;
         // Served while the limiter's store was down (fail open): not rate limited.
         if (result.headers.get("X-RateLimit-Degraded") === "true") record.degraded = true;
         if (result.ok) {

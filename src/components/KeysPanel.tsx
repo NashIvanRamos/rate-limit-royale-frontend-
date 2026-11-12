@@ -10,7 +10,7 @@ interface KeysPanelProps {
   /** Live counts while firing, or the tally's byClient on the results screen. */
   byClient: Record<string, StatusCounts>;
   /** Server truth from GET /api/stats (results only): limiter keys held, and how many are legit clients'. */
-  serverKeys?: { tracked: number; legit: number };
+  serverKeys?: { tracked: number; legit: number; nodes: number };
 }
 
 const ZERO: StatusCounts = { s200: 0, s429: 0, s401: 0 };
@@ -77,11 +77,17 @@ export function KeysPanel({ scenario, config, byClient, serverKeys }: KeysPanelP
         </div>
       )}
 
-      {serverKeys && (
-        <p className="results__server num">
-          Server limiter holds {serverKeys.tracked} keys: {Math.max(0, serverKeys.tracked - serverKeys.legit)} attacker + {serverKeys.legit} legit.
-        </p>
-      )}
+      {serverKeys &&
+        (serverKeys.nodes > 1 ? (
+          // Each memory-mode node keeps its own copy of every key it has seen, so the split doesn't add up per key.
+          <p className="results__server num">
+            Server limiters hold {serverKeys.tracked} keys across {serverKeys.nodes} nodes (each node keeps its own).
+          </p>
+        ) : (
+          <p className="results__server num">
+            Server limiter holds {serverKeys.tracked} keys: {Math.max(0, serverKeys.tracked - serverKeys.legit)} attacker + {serverKeys.legit} legit.
+          </p>
+        ))}
     </div>
   );
 }

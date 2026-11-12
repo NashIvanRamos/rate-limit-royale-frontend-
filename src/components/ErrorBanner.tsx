@@ -65,6 +65,17 @@ export function DegradedBanner({ failureMode }: { failureMode?: "open" | "closed
   );
 }
 
+/** A memory-mode cluster without API_NODES: a deploy through the load balancer reaches only one node. */
+export function ClusterDeployWarning() {
+  return (
+    <Banner tone="auth" title="Memory-mode cluster: deploys reach one node">
+      Each node keeps its own state, and a deploy through the load balancer only resets one of them, so this round's numbers
+      would be wrong. Restart the frontend with <code className="num">API_NODES=http://localhost:3001,http://localhost:3002,http://localhost:3003</code> so
+      the game can deploy to every node.
+    </Banner>
+  );
+}
+
 /** Background tabs throttle timers, which skews a round's timing. */
 export function TabHiddenBanner({ onDismiss }: { onDismiss: () => void }) {
   return (
