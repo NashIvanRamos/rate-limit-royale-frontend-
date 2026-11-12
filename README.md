@@ -121,7 +121,8 @@ npm run dev
   (`limiterStore` in `POST /api/defense`), so you can compare both without restarting anything. Per node = each node
   keeps its own counters and login lockouts for that round; config and stats stay shared, so the cross-check still
   covers the whole cluster. The toggle only appears when the backend advertises both stores, and the field is only
-  sent then.
+  sent then. It's hidden on a single node (plain `npm run dev` in the backend), where there's only one node's state
+  to share, and on a memory-only cluster (`--store memory`), which can't run a shared round.
 - If Redis goes down, the pill turns **Degraded**: API requests fail open (served without rate limiting, counted
   and reported on the results) or closed (503, counted as errors), and logins and deploys are refused. Deploy is
   disabled until Redis recovers.
