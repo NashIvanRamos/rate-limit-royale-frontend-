@@ -11,6 +11,11 @@ interface KeysPanelProps {
   byClient: Record<string, StatusCounts>;
   /** Server truth from GET /api/stats (results only): limiter keys held, and how many are legit clients'. */
   serverKeys?: { tracked: number; legit: number; nodes: number };
+  /**
+   * Memory-mode cluster: how many nodes the attacker's requests reached. Each node keeps its own copy of every
+   * key, so the attacker's budgets multiply by this. 1 on a single node, under Redis, or under sticky routing.
+   */
+  budgetNodes?: number;
 }
 
 const ZERO: StatusCounts = { s200: 0, s429: 0, s401: 0 };
@@ -19,7 +24,7 @@ const ZERO: StatusCounts = { s200: 0, s429: 0, s401: 0 };
  * Round 5's keying story: under "key by user" the limiter holds one budget per rotating account
  * (50 keys); under "key by IP" all 50 accounts share 10.6.6.6's single budget (1 key).
  */
-export function KeysPanel({ scenario, config, byClient, serverKeys }: KeysPanelProps) {
+export function KeysPanel({ scenario, config, byClient, serverKeys, budgetNodes = 1 }: KeysPanelProps) {
   const attackers = useMemo(() => scenario.clients.filter((c) => !c.legit), [scenario]);
   // Requests each account is scripted to send, so a cell's fill is "share of its requests that passed".
   const scripted = useMemo(() => {
@@ -48,7 +53,13 @@ export function KeysPanel({ scenario, config, byClient, serverKeys }: KeysPanelP
           <span className="keys__keycount num">
             {keys} {keys === 1 ? "key" : "keys"}
           </span>
-          <span className="config__note">{keys === 1 ? "one shared budget" : "one budget per account"}</span>
+          <span className="config__note">
+            {budgetNodes > 1
+              ? `on each of ${budgetNodes} nodes: ${keys * budgetNodes} budgets`
+              : keys === 1
+                ? "one shared budget"
+                : "one budget per account"}
+          </span>
         </div>
       </div>
 
@@ -73,7 +84,13 @@ export function KeysPanel({ scenario, config, byClient, serverKeys }: KeysPanelP
           <span className="num">
             <span className="tone-accepted">{passed} passed</span> · <span className="tone-blocked">{blocked} blocked</span>
           </span>
-          <span className="config__note">{blocked > 0 ? "Budget spent: every account behind this IP is blocked" : `Shared budget for all ${attackers.length} accounts`}</span>
+          <span className="config__note">
+            {budgetNodes > 1
+              ? `Shared by all ${attackers.length} accounts, but each of ${budgetNodes} nodes has its own copy of this budget`
+              : blocked > 0
+                ? "Budget spent: every account behind this IP is blocked"
+                : `Shared budget for all ${attackers.length} accounts`}
+          </span>
         </div>
       )}
 

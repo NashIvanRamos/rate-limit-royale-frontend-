@@ -93,6 +93,7 @@ function Game() {
     controllerRef.current = ac;
     const round = state.round;
     const config = state.config;
+    const server = state.server;
     setTabWarning(false);
     dispatch({ type: "DEPLOY_START" });
     try {
@@ -102,7 +103,7 @@ function Game() {
         signal: ac.signal,
         onStage: (event) => dispatch({ type: "FIRING_STAGE", event }),
         onProgress: (progress) => dispatch({ type: "FIRING_PROGRESS", progress }),
-        server: state.server,
+        server,
       });
       const t = tally(run.records);
       // Failed requests (network or 5xx) make the round's numbers incomplete: don't score it.
@@ -117,7 +118,9 @@ function Game() {
       const crossCheckNote = perNodeOnly ? `Per-node stats (${stats.nodeId}): cross-check unavailable on a memory-mode cluster.` : undefined;
       dispatch({
         type: "ROUND_COMPLETE",
-        result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline, crossCheck: check, crossCheckNote },
+        result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline, crossCheck: check, crossCheckNote,
+          cluster: server.nodeId && server.nodeId !== "single" && server.store ? { store: server.store } : undefined,
+        },
       });
     } catch (err) {
       dispatch({ type: "ROUND_FAILED", error: toAppError(err) });

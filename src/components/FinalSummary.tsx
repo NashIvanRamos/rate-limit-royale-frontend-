@@ -11,6 +11,7 @@ interface FinalSummaryProps {
 
 export function FinalSummary({ history, score, onRestart }: FinalSummaryProps) {
   const cleared = history.filter((r) => r.cleared).length;
+  const cluster = history.find((r) => r.cluster)?.cluster;
   return (
     <section className="stack" style={{ gap: 20 }} aria-labelledby="summary-title">
       <div className="row spread" style={{ alignItems: "flex-end" }}>
@@ -19,7 +20,7 @@ export function FinalSummary({ history, score, onRestart }: FinalSummaryProps) {
             Final summary
           </h2>
           <p className="section__sub">
-            {cleared} of {history.length} rounds cleared.
+            {cleared} of {history.length} rounds cleared{cluster ? ` on a cluster (${cluster.store} store)` : ""}.
           </p>
         </div>
         <div className="stack" style={{ gap: 2, alignItems: "flex-end" }}>

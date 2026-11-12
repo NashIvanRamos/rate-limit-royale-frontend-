@@ -4,6 +4,7 @@ import { SCORING } from "../scoring";
 import type { CrossCheck, RoundResult, Scenario, StatusCounts, Tally } from "../types";
 import { BoundaryTimeline } from "./BoundaryTimeline";
 import { KeysPanel } from "./KeysPanel";
+import { ScalingPanel } from "./ScalingPanel";
 import { CountUp } from "./ui/CountUp";
 import { Button } from "./ui/Button";
 import { DistributionBar } from "./ui/DistributionBar";
@@ -170,7 +171,15 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: 
             config={result.config}
             byClient={t.byClient}
             serverKeys={result.crossCheck && { tracked: result.crossCheck.trackedKeys, legit: result.crossCheck.legitKeys, nodes: result.crossCheck.nodes }}
+            budgetNodes={result.cluster?.store === "memory" ? Object.values(t.attackByNode).filter((n) => n > 0).length || 1 : 1}
           />
+        </div>
+      )}
+
+      {scenario.id === 5 && result.cluster && (
+        <div className="stack" style={{ gap: 10 }}>
+          <h3 className="results__subtitle">Scaling</h3>
+          <ScalingPanel result={result} />
         </div>
       )}
 

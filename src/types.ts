@@ -131,6 +131,8 @@ export interface Tally {
   byNode: Record<string, number>;
   /** Attacker requests per backend node: the scaling story (spread by round robin, pinned by sticky routing). */
   attackByNode: Record<string, number>;
+  /** Attacker requests that passed (200), per backend node. */
+  attackPassedByNode: Record<string, number>;
 }
 
 /** Round 2: attacker requests around the window boundary the bursts aimed at. */
@@ -164,4 +166,6 @@ export interface RoundResult {
   crossCheck?: CrossCheck;
   /** Why there's no cross-check, e.g. a memory-mode cluster where one node's stats are only its own slice. */
   crossCheckNote?: string;
+  /** Set when the round ran behind a load balancer (X-Node-Id other than "single"). */
+  cluster?: { store: "memory" | "redis" };
 }
