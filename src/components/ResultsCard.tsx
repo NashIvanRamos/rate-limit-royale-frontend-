@@ -108,7 +108,7 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: 
           value={<CountUp value={t.legitBlocks} className="" />}
           note={t.legitExpired > 0 ? `Expired-token legit: ${t.legitExpired} (not penalised)` : undefined}
         />
-        {t.errors > 0 && <ResultTile label="Network errors" value={t.errors} />}
+        {t.errors > 0 && <ResultTile label="Errors (network / 5xx)" value={t.errors} />}
       </div>
 
       <div className="stack" style={{ gap: 2 }}>
@@ -116,6 +116,12 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: 
           Attack: {t.attackTotal} sent · {t.attackStopped} stopped · {t.attackPassed} passed (allowance {result.allowance})
         </p>
         {result.crossCheck && <ServerCheck check={result.crossCheck} />}
+        {result.crossCheckNote && <p className="results__server">{result.crossCheckNote}</p>}
+        {t.degraded > 0 && (
+          <p className="results__server tone-auth">
+            {t.degraded} {t.degraded === 1 ? "request was" : "requests were"} served without rate limiting (Redis down, fail open).
+          </p>
+        )}
       </div>
 
       <div className="stack" style={{ gap: 10 }}>

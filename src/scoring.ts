@@ -5,6 +5,9 @@ import type { ApiPath, DefenseConfig, RequestRecord, Scenario, ScenarioEvent, St
 
 const emptyCounts = (): StatusCounts => ({ s200: 0, s429: 0, s401: 0 });
 
+/** Network failure (status 0) or any server error. Never accepted, never blocked. */
+export const isError = (status: number) => status === 0 || status >= 500;
+
 function bump(counts: StatusCounts, status: number): void {
   if (status === 200) counts.s200 += 1;
   else if (status === 429) counts.s429 += 1;
@@ -13,7 +16,8 @@ function bump(counts: StatusCounts, status: number): void {
 
 /**
  * Definitions are exact (brief §5):
- *   accepted = 200, blocked = 429, rejectedAuth = 401, errors = status 0 (network)
+ *   accepted = 200, blocked = 429, rejectedAuth = 401, errors = status 0 (network) or any 5xx (e.g. a 503
+ *   limiter_unavailable from a fail-closed Redis outage): an error is never accepted or blocked
  *   legitBlocks  = legit && 429   ← the only thing that costs XP. A 401 is NEVER a legit block.
  *   legitExpired = legit && 401   ← reported, costs nothing
  *   attackTotal = !legit, attackStopped = !legit && (429 || 401), attackPassed = !legit && 200
@@ -32,6 +36,7 @@ export function tally(records: RequestRecord[]): Tally {
     attackTotal: 0,
     attackStopped: 0,
     attackPassed: 0,
+    degraded: 0,
     byReason: {},
     byClient: {},
     byPath: { "/api/resource": emptyCounts(), "/api/login": emptyCounts() } satisfies Record<ApiPath, StatusCounts>,
@@ -46,7 +51,8 @@ export function tally(records: RequestRecord[]): Tally {
     if (status === 200) t.accepted += 1;
     else if (status === 429) t.blocked += 1;
     else if (status === 401) t.rejectedAuth += 1;
-    else if (status === 0) t.errors += 1;
+    else if (isError(status)) t.errors += 1;
+    if (r.degraded) t.degraded += 1;
 
     if (legit) {
       if (status === 429) t.legitBlocks += 1;
@@ -62,7 +68,7 @@ export function tally(records: RequestRecord[]): Tally {
     bump((t.byClient[r.clientId] ??= emptyCounts()), status);
     bump(t.byPath[r.path], status);
 
-    if (status !== 0) {
+    if (!isError(status)) {
       latencySum += r.latencyMs;
       latencyCount += 1;
     }

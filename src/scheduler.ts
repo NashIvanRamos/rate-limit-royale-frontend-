@@ -2,6 +2,7 @@
 // All timers are scheduled up front, so no request ever waits for another one to finish.
 
 import { apiRequest, CLIENT_ERRORS, type ResourceResponse } from "./api";
+import { isError } from "./scoring";
 import type { ClientSpec, RequestRecord, ScenarioEvent, StatusCounts } from "./types";
 
 /** Running counts for the live firing view (task 13). Only statuses the game cares about. */
@@ -9,7 +10,7 @@ export interface LiveCounts {
   s200: number;
   s429: number;
   s401: number;
-  /** Status 0: the backend was unreachable. */
+  /** Status 0 (backend unreachable) or 5xx (e.g. limiter_unavailable). */
   errors: number;
 }
 
@@ -152,6 +153,8 @@ export function runScenario({
           latencyMs: performance.now() - start - sentAt,
           sentAt,
         };
+        // Served while the limiter's store was down (fail open): not rate limited.
+        if (result.headers.get("X-RateLimit-Degraded") === "true") record.degraded = true;
         if (result.ok) {
           if (typeof result.data.servedAt === "number") record.servedAt = result.data.servedAt;
         } else {
@@ -170,7 +173,7 @@ export function runScenario({
         } else if (record.status === 401) {
           counts.s401 += 1;
           perClient.s401 += 1;
-        } else if (record.status === 0) counts.errors += 1;
+        } else if (isError(record.status)) counts.errors += 1;
         throttledEmit();
       } finally {
         settleOne();

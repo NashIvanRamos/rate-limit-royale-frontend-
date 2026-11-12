@@ -77,6 +77,17 @@ export class SetupError extends Error {
   }
 }
 
+/**
+ * The backend's shared store (Redis) is down: deploys and logins answer 503 store_unavailable until it
+ * recovers. Nothing was fired.
+ */
+export class StoreUnavailableError extends Error {
+  constructor(message = "Backend store unavailable") {
+    super(message);
+    this.name = "StoreUnavailableError";
+  }
+}
+
 /** The caller aborted the round. No result should be recorded. */
 export class RoundAbortedError extends Error {
   constructor() {
@@ -131,6 +142,10 @@ function isNetwork<T>(res: ApiResult<T>): boolean {
 }
 function isAborted<T>(res: ApiResult<T>): boolean {
   return !res.ok && res.status === 0 && res.error.error === CLIENT_ERRORS.aborted;
+}
+/** 503 from a distributed backend whose Redis store is down. */
+function isStoreDown<T>(res: ApiResult<T>): boolean {
+  return !res.ok && res.status === 503;
 }
 
 /** Builds every client's token. Server calls run with limited concurrency and stop at the first failure. */
@@ -192,7 +207,11 @@ async function setupTokens(
         done += 1;
         onStage?.({ stage: "logging-in", done, total });
       } else if (!isAborted(res) && !failure) {
-        failure = isNetwork(res) ? new OfflineError() : new SetupError(c, endpoint, res.status, res.error.reason ?? res.error.error);
+        failure = isNetwork(res)
+          ? new OfflineError()
+          : isStoreDown(res)
+            ? new StoreUnavailableError(`Login for ${username} refused: 503 ${res.error.error}`)
+            : new SetupError(c, endpoint, res.status, res.error.reason ?? res.error.error);
         stop.abort();
       }
     }
@@ -228,6 +247,7 @@ export async function runRound({ scenario, config, onStage, onProgress, signal }
   if (!dep.ok) {
     if (isAborted(dep)) throw new RoundAbortedError();
     if (isNetwork(dep)) throw new OfflineError();
+    if (isStoreDown(dep)) throw new StoreUnavailableError(`Deploy refused: 503 ${dep.error.error}`);
     throw new DeployError(dep.status, dep.error.details ?? [], dep.status === 400 ? undefined : `Deploy failed (${dep.status} ${dep.error.error})`);
   }
   const deployed = dep.data;

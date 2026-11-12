@@ -1,4 +1,5 @@
 import { ROUND_COUNT } from "../scenarios";
+import type { ServerState } from "../state";
 import { Icon } from "./ui/Icon";
 import { ProgressBar } from "./ui/ProgressBar";
 import { StatusPill } from "./ui/StatusPill";
@@ -6,12 +7,18 @@ import { StatusPill } from "./ui/StatusPill";
 interface HeaderProps {
   round: number;
   score: number;
-  serverOnline: boolean | null;
+  server: ServerState;
+}
+
+/** Tooltip for the degraded pill: what a Redis outage means for each endpoint. */
+function degradedTitle(server: ServerState): string {
+  const resource = server.failureMode === "closed" ? "API requests are refused (503)" : "API requests are served without rate limiting";
+  return `Redis is down: ${resource}; logins and deploys are refused until it recovers.`;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export function Header({ round, score, serverOnline }: HeaderProps) {
+export function Header({ round, score, server }: HeaderProps) {
   return (
     <header className="stack" style={{ gap: 16 }}>
       <div className="row spread" style={{ alignItems: "flex-start" }}>
@@ -24,7 +31,7 @@ export function Header({ round, score, serverOnline }: HeaderProps) {
             <span className="label">API Defense Arena</span>
           </div>
         </div>
-        <StatusPill status={serverOnline === null ? "checking" : serverOnline ? "online" : "offline"} />
+        <StatusPill status={server.status} title={server.status === "degraded" ? degradedTitle(server) : undefined} />
       </div>
 
       <hr className="divider" />

@@ -4,6 +4,7 @@ import { Button } from "./ui/Button";
 
 const TITLES: Record<AppError["kind"], string> = {
   offline: "Backend offline",
+  degraded: "Backend degraded",
   invalid_config: "Defense rejected by the server",
   setup: "Round setup failed",
   unknown: "Something went wrong",
@@ -50,6 +51,16 @@ export function OfflineBanner() {
   return (
     <Banner tone="blocked" title="Backend offline">
       Start it with <code className="num">DEMO_MODE=true npm run dev</code> on :3000. Deploy is disabled until it's back.
+    </Banner>
+  );
+}
+
+/** Shown while health reports "degraded": the backend's Redis store is unreachable. */
+export function DegradedBanner({ failureMode }: { failureMode?: "open" | "closed" }) {
+  return (
+    <Banner tone="auth" title="Backend degraded: Redis is down">
+      {failureMode === "closed" ? "API requests are refused (fail closed)" : "API requests are served without rate limiting (fail open)"}, and logins and
+      deploys are refused. Deploy is disabled until Redis is back.
     </Banner>
   );
 }
