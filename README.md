@@ -116,6 +116,12 @@ npm run dev
   game shows a warning, and the cross-check says "unavailable". In Redis mode one deploy covers the cluster.
 - The header shows **Cluster · memory/redis**, results show which node served how many requests, and round 5 gets
   a **Scaling** panel explaining the result from that run's per-node numbers.
+- **Limiter state toggle.** On a Redis-backed cluster (`--store redis`, backend tasks2/09 or later) the config panel
+  shows **Limiter state across the cluster: Shared (Redis) / Per node**. It's chosen per round on deploy
+  (`limiterStore` in `POST /api/defense`), so you can compare both without restarting anything. Per node = each node
+  keeps its own counters and login lockouts for that round; config and stats stay shared, so the cross-check still
+  covers the whole cluster. The toggle only appears when the backend advertises both stores, and the field is only
+  sent then.
 - If Redis goes down, the pill turns **Degraded**: API requests fail open (served without rate limiting, counted
   and reported on the results) or closed (503, counted as errors), and logins and deploys are refused. Deploy is
   disabled until Redis recovers.
@@ -131,6 +137,13 @@ Fixed window, 10 per 10s, **key by IP**. Single node for comparison: 11–13 thr
 | sticky + memory | **12** | node-2 300 (12) | Cleared | ✓ sum of 3 nodes |
 
 Round 4 on the memory cluster also leaks: 15 failed logins before lockout (5 per node) instead of 5.
+
+The same comparison with the **toggle**, on one Redis-backed cluster (`npm run cluster -- --store redis`), 2026-11-12:
+
+| Limiter state | Round 5 attacker through | Round 4 failed logins before lockout | Server |
+|---|---|---|---|
+| Per node | **32** (node-1 10 · node-2 11 · node-3 11), Breached | **15** | ✓ |
+| Shared (Redis) | **12** (4 · 4 · 4), Cleared | 5 | ✓ |
 
 The backend's own `npm run experiment` (its `docs/experiment-results.md`, 2026-11-12) measured 33 / 13 / 13 for the
 same three setups, and **23** for sticky + memory when the attacker's node is killed halfway through (13 with Redis).
@@ -156,10 +169,10 @@ same three setups, and **23** for sticky + memory when the attacker's node is ki
 
 A retry replaces the round's earlier attempt, so its XP is only counted once.
 
-3. **Optional, the scaling story (+30–45s).** Start the backend cluster with `--store memory` and the frontend with
-   `API_TARGET` and `API_NODES` (see [Cluster mode](#cluster-mode)). Play round 5 keyed by IP: ~33 through, spread
-   over 3 nodes, **Breached**, and the Scaling panel shows one budget per node. Restart the cluster with
-   `--store redis`, play round 5 again: ~13 through, **Cleared**. One sentence on sticky routing: it looks fixed
-   until a node dies.
+3. **Optional, the scaling story (+30–45s).** Start the backend cluster once with `npm run cluster -- --store redis`
+   and the frontend with `API_TARGET=http://localhost:8080` (see [Cluster mode](#cluster-mode)). In round 5, keyed
+   by IP, set **Limiter state: Per node** and deploy: ~33 through, spread over 3 nodes, **Breached**, and the Scaling
+   panel shows one budget per node. Click **Retry this round**, switch to **Shared (Redis)**: ~13 through,
+   **Cleared**. One sentence on sticky routing: it looks fixed until a node dies.
 
 Keep the tab in the foreground while recording.

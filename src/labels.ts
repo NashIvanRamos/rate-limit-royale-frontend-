@@ -1,6 +1,6 @@
 // Display names and formatters shared by the briefing, config, preview, results and summary.
 
-import type { Algorithm, DefenseConfig, KeyBy } from "./types";
+import type { Algorithm, DefenseConfig, KeyBy, LimiterStore } from "./types";
 
 export const ALGORITHM_NAMES: Readonly<Record<Algorithm, string>> = {
   fixed: "Fixed Window",
@@ -24,11 +24,22 @@ export const KEY_BY_HELP: Readonly<Record<KeyBy, string>> = {
   user: "Every logged-in account gets its own budget.",
 };
 
+export const LIMITER_STORE_NAMES: Readonly<Record<LimiterStore, string>> = {
+  redis: "Shared (Redis)",
+  memory: "Per node",
+};
+
+export const LIMITER_STORE_HELP: Readonly<Record<LimiterStore, string>> = {
+  redis: "Every node counts against the same budget in Redis.",
+  memory: "Each node keeps its own counters, like three servers that never talk to each other.",
+};
+
 /** 10000 → "10s". */
 export const formatWindow = (windowMs: number) => `${windowMs / 1000}s`;
 
 /** "sliding · 10/3s · ip" */
-export const shortConfig = (c: DefenseConfig) => `${c.algorithm} · ${c.maxRequests}/${formatWindow(c.windowMs)} · ${c.keyBy}`;
+export const shortConfig = (c: DefenseConfig) =>
+  `${c.algorithm} · ${c.maxRequests}/${formatWindow(c.windowMs)} · ${c.keyBy}${c.limiterStore ? ` · ${c.limiterStore === "redis" ? "shared" : "per node"}` : ""}`;
 
 /** Token bucket refill interval, e.g. "1 token / 1.0s". */
 export const refillLabel = (c: DefenseConfig) => `1 token / ${(c.windowMs / c.maxRequests / 1000).toFixed(1)}s`;

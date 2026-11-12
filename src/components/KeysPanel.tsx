@@ -10,7 +10,8 @@ interface KeysPanelProps {
   /** Live counts while firing, or the tally's byClient on the results screen. */
   byClient: Record<string, StatusCounts>;
   /** Server truth from GET /api/stats (results only): limiter keys held, and how many are legit clients'. */
-  serverKeys?: { tracked: number; legit: number; nodes: number };
+  /** `node`: the count is that one node's own (per-node round on a Redis-backed cluster). */
+  serverKeys?: { tracked: number; legit: number; nodes: number; node?: string };
   /**
    * Memory-mode cluster: how many nodes the attacker's requests reached. Each node keeps its own copy of every
    * key, so the attacker's budgets multiply by this. 1 on a single node, under Redis, or under sticky routing.
@@ -95,7 +96,11 @@ export function KeysPanel({ scenario, config, byClient, serverKeys, budgetNodes 
       )}
 
       {serverKeys &&
-        (serverKeys.nodes > 1 ? (
+        (serverKeys.node ? (
+          <p className="results__server num">
+            {serverKeys.node} alone holds {serverKeys.tracked} limiter keys: in a per-node round each node keeps its own.
+          </p>
+        ) : serverKeys.nodes > 1 ? (
           // Each memory-mode node keeps its own copy of every key it has seen, so the split doesn't add up per key.
           <p className="results__server num">
             Server limiters hold {serverKeys.tracked} keys across {serverKeys.nodes} nodes (each node keeps its own).

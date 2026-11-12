@@ -23,8 +23,14 @@ export function useServerHealth(onStatus: (server: ServerState) => void, interva
         onStatus({ status: "offline" });
         return;
       }
-      const { status, nodeId, store, failureMode } = res.data;
-      onStatus({ status: status === "healthy" ? "online" : status === "degraded" ? "degraded" : "offline", nodeId, store, failureMode });
+      const { status, nodeId, store, failureMode, limiterStores } = res.data;
+      onStatus({
+        status: status === "healthy" ? "online" : status === "degraded" ? "degraded" : "offline",
+        nodeId,
+        store,
+        failureMode,
+        limiterStores: Array.isArray(limiterStores) ? limiterStores : undefined,
+      });
     };
 
     void check();

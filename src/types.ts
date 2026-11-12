@@ -6,11 +6,19 @@
 export type Algorithm = "fixed" | "sliding" | "token";
 export type KeyBy = "ip" | "user";
 
+/** Where a round's rate-limit counters and login lockouts live: per node ("memory") or shared ("redis"). */
+export type LimiterStore = "memory" | "redis";
+
 export interface DefenseConfig {
   algorithm: Algorithm;
   maxRequests: number;
   windowMs: number;
   keyBy: KeyBy;
+  /**
+   * Per-round limiter store (backend tasks2/09). Only sent when the backend advertises both stores; older backends
+   * reject unknown fields. The deploy response always echoes the effective value.
+   */
+  limiterStore?: LimiterStore;
 }
 
 export const ALGORITHMS: readonly Algorithm[] = ["fixed", "sliding", "token"];
@@ -150,6 +158,11 @@ export interface CrossCheck {
   trackedKeys: number;
   /** Stats summed over this many cluster nodes (memory-mode cluster). 1 = a single /api/stats. */
   nodes: number;
+  /**
+   * Set when `trackedKeys` is one node's own count: a per-node ("memory") round on a Redis-backed cluster, where
+   * request counts are cluster-wide but there's no shared key set.
+   */
+  keysNode?: string;
   legitKeys: number;
 }
 
@@ -166,6 +179,6 @@ export interface RoundResult {
   crossCheck?: CrossCheck;
   /** Why there's no cross-check, e.g. a memory-mode cluster where one node's stats are only its own slice. */
   crossCheckNote?: string;
-  /** Set when the round ran behind a load balancer (X-Node-Id other than "single"). */
-  cluster?: { store: "memory" | "redis" };
+  /** Set when the round ran behind a load balancer (X-Node-Id other than "single"). `store` = the round's limiter store. */
+  cluster?: { store: LimiterStore };
 }

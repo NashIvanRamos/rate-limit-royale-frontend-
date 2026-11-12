@@ -41,6 +41,8 @@ export interface ServerState {
   nodeId?: string;
   store?: LimiterStore;
   failureMode?: "open" | "closed";
+  /** Limiter stores the backend can run a round on. Both = show the per-round toggle. */
+  limiterStores?: LimiterStore[];
 }
 
 export interface AppError {
@@ -80,6 +82,15 @@ export type Action =
   | { type: "SERVER_STATUS"; server: ServerState }
   | { type: "DISMISS_ERROR" };
 
+/**
+ * The per-round "shared limiter state" toggle only makes sense behind a load balancer, on a backend that can run a
+ * round on either store (Redis-backed, tasks2/09). On one node both stores behave the same.
+ */
+export function canToggleLimiterStore(server: ServerState): boolean {
+  const stores = server.limiterStores ?? [];
+  return server.nodeId !== undefined && server.nodeId !== "single" && stores.includes("memory") && stores.includes("redis");
+}
+
 export const INITIAL_CONFIG: DefenseConfig = { algorithm: "fixed", maxRequests: 10, windowMs: 10_000, keyBy: "ip" };
 
 const emptyFiring = (): FiringState => ({
@@ -111,6 +122,7 @@ export function clampConfig(config: DefenseConfig): DefenseConfig {
   return {
     algorithm: config.algorithm,
     keyBy: config.keyBy,
+    ...(config.limiterStore ? { limiterStore: config.limiterStore } : {}),
     maxRequests: clampInt(config.maxRequests, CONFIG_LIMITS.maxRequests),
     // The UI works in whole seconds; the backend takes ms.
     windowMs: clampInt(config.windowMs / 1000, { min: CONFIG_LIMITS.windowMs.min / 1000, max: CONFIG_LIMITS.windowMs.max / 1000 }) * 1000,
@@ -186,7 +198,12 @@ export function reducer(state: State, action: Action): State {
     case "SERVER_STATUS": {
       const a = action.server;
       const b = state.server;
-      const same = a.status === b.status && a.nodeId === b.nodeId && a.store === b.store && a.failureMode === b.failureMode;
+      const same =
+        a.status === b.status &&
+        a.nodeId === b.nodeId &&
+        a.store === b.store &&
+        a.failureMode === b.failureMode &&
+        (a.limiterStores ?? []).join() === (b.limiterStores ?? []).join();
       return same ? state : { ...state, server: a };
     }
 

@@ -170,7 +170,14 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: 
             scenario={scenario}
             config={result.config}
             byClient={t.byClient}
-            serverKeys={result.crossCheck && { tracked: result.crossCheck.trackedKeys, legit: result.crossCheck.legitKeys, nodes: result.crossCheck.nodes }}
+            serverKeys={
+              result.crossCheck && {
+                tracked: result.crossCheck.trackedKeys,
+                legit: result.crossCheck.legitKeys,
+                nodes: result.crossCheck.nodes,
+                node: result.crossCheck.keysNode,
+              }
+            }
             budgetNodes={result.cluster?.store === "memory" ? Object.values(t.attackByNode).filter((n) => n > 0).length || 1 : 1}
           />
         </div>
