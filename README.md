@@ -19,7 +19,8 @@ and legitimate traffic at it. Every number on screen comes from real HTTP respon
    Open http://localhost:5173. Vite proxies `/api/*` to `http://localhost:3000`.
 
 Quick check that the proxy works: `curl localhost:5173/api/health` returns `{ "status": "healthy", … }`.
-If the header pill says **Offline**, the backend isn't running. If round 4 fails with "Backend not in DEMO_MODE",
+If the header pill says **Offline**, the backend isn't running. **Degraded** means a Redis-backed backend lost Redis
+(see [Cluster mode](#cluster-mode)). If round 4 fails with "Backend not in DEMO_MODE",
 restart it with `DEMO_MODE=true`.
 
 Keep the tab in the foreground while a round fires: background tabs throttle timers.
@@ -63,8 +64,10 @@ land within ~500ms. A round is cleared with zero legit blocks and containment �
 
 ## Verification matrix
 
-Real runs against the backend on 2026-11-11, through the same `runRound` → `tally` → `score` code the UI
-uses. "Server" compares the browser's `/api/resource` (and round 4's `/api/login`) counts with `GET /api/stats`.
+Real runs against a single backend node, through the same `runRound` → `tally` → `score` code the UI uses.
+"Server" compares the browser's `/api/resource` (and round 4's `/api/login`) counts with `GET /api/stats`.
+First run on 2026-11-11; re-run on 2026-11-12 against the distributed-mode backend (backend tasks2 00–08, still on
+a single node): every number below came out identical.
 
 | Round | Config | Expect | Attacker passed / sent (allowance) | 200 / 429 / 401 | Legit blocks | Outcome | Server |
 |---|---|---|---|---|---|---|---|
@@ -90,6 +93,58 @@ legit) vs 4 under key by IP (1 + 3).
 - [x] 401s are reported separately from 429s and never count as legit blocks (round 4: 4 expired legit, 0 legit blocks).
 - [x] Every number shown comes from a real run; the components contain no example data.
 
+## Cluster mode
+
+The backend can also run as 3 nodes behind NGINX (`npm run cluster` in the backend), with limiter state either
+per node (`--store memory`) or shared in Redis (`--store redis`). Point the frontend at it:
+
+```sh
+# backend: pick one
+npm run cluster -- --store memory                 # round robin, state per node (leaks)
+npm run cluster -- --store redis                  # round robin, shared state in Redis (fixed)
+npm run cluster -- --lb sticky --store memory     # sticky routing (looks fixed, isn't)
+
+# frontend
+API_TARGET=http://localhost:8080 \
+API_NODES=http://localhost:3001,http://localhost:3002,http://localhost:3003 \
+npm run dev
+```
+
+- `API_TARGET` is where game traffic goes (default `http://localhost:3000`, a single node).
+- `API_NODES` (memory-mode clusters) lets the game deploy to **every** node and add up every node's `/api/stats`. A
+  deploy through NGINX only reaches one node, so without it the other two keep the previous round's state, the
+  game shows a warning, and the cross-check says "unavailable". In Redis mode one deploy covers the cluster.
+- The header shows **Cluster · memory/redis**, results show which node served how many requests, and round 5 gets
+  a **Scaling** panel explaining the result from that run's per-node numbers.
+- If Redis goes down, the pill turns **Degraded**: API requests fail open (served without rate limiting, counted
+  and reported on the results) or closed (503, counted as errors), and logins and deploys are refused. Deploy is
+  disabled until Redis recovers.
+
+### Round 5 on the cluster, measured from the browser (2026-11-12)
+
+Fixed window, 10 per 10s, **key by IP**. Single node for comparison: 11–13 through.
+
+| Cluster | Attacker through | Attacker requests per node (passed) | Outcome | Server |
+|---|---|---|---|---|
+| round robin + memory | **33** | node-1 101 (11) · node-2 99 (11) · node-3 100 (11) | Breached | ✓ sum of 3 nodes |
+| round robin + Redis | **13** | node-1 99 (4) · node-2 100 (4) · node-3 101 (5) | Cleared | ✓ |
+| sticky + memory | **12** | node-2 300 (12) | Cleared | ✓ sum of 3 nodes |
+
+Round 4 on the memory cluster also leaks: 15 failed logins before lockout (5 per node) instead of 5.
+
+The backend's own `npm run experiment` (its `docs/experiment-results.md`, 2026-11-12) measured 33 / 13 / 13 for the
+same three setups, and **23** for sticky + memory when the attacker's node is killed halfway through (13 with Redis).
+
+### Interview notes
+
+- **What happens with multiple servers?** Measured: with round robin and in-memory counters the attacker gets ~3×
+  through (one budget per node). Moving the counters to Redis (atomic Lua scripts) brings it back to the
+  single-node number.
+- **Why not sticky sessions?** They look fixed (12–13 through) until a node dies: the attacker lands on a fresh node
+  with a fresh budget (23 through in the backend's experiment).
+- **What if Redis goes down?** Resource requests fail open with a degraded header (available but unprotected; the
+  game reports how many), logins fail closed (no unlimited password guessing), and it recovers on its own.
+
 ## Demo script (under 5 minutes)
 
 1. **Round 2, the algorithm story.** Set the window to **3s**, keep **Fixed Window**, deploy: both bursts pass
@@ -100,5 +155,11 @@ legit) vs 4 under key by IP (1 + 3).
    `10.6.6.6` cell turns red after its quota, **Cleared**.
 
 A retry replaces the round's earlier attempt, so its XP is only counted once.
+
+3. **Optional, the scaling story (+30–45s).** Start the backend cluster with `--store memory` and the frontend with
+   `API_TARGET` and `API_NODES` (see [Cluster mode](#cluster-mode)). Play round 5 keyed by IP: ~33 through, spread
+   over 3 nodes, **Breached**, and the Scaling panel shows one budget per node. Restart the cluster with
+   `--store redis`, play round 5 again: ~13 through, **Cleared**. One sentence on sticky routing: it looks fixed
+   until a node dies.
 
 Keep the tab in the foreground while recording.
