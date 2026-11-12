@@ -209,6 +209,8 @@ input {
 .pill--online { border-color: color-mix(in srgb, var(--accepted) 45%, transparent); color: var(--accepted); }
 .pill--online .pill__dot { background: var(--accepted); box-shadow: 0 0 8px var(--accepted); }
 .pill--offline { border-color: var(--blocked); color: var(--blocked); }
+.pill--degraded { border-color: var(--auth); color: var(--auth); }
+.pill--degraded .pill__dot { background: var(--auth); }
 .pill--offline .pill__dot { background: var(--blocked); }
 
 /* ---------- Header ---------- */

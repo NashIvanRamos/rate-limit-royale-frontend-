@@ -33,12 +33,24 @@ export const CLIENT_ERRORS = Object.freeze({
 
 // ─── Response bodies ─────────────────────────────────────────────────────────
 
+export type LimiterStore = "memory" | "redis";
+
+/**
+ * Always HTTP 200. "degraded" = the Redis store is unreachable (then algorithm/keyBy are null).
+ * nodeId is "single" on one node, "node-1".."node-3" in the cluster. Older backends omit nodeId/store.
+ */
 export interface HealthResponse {
-  status: "healthy";
+  status: "healthy" | "degraded";
   service: string;
+  nodeId?: string;
   uptimeS: number;
-  algorithm: Algorithm;
-  keyBy: KeyBy;
+  store?: LimiterStore;
+  /** Redis mode only. */
+  redis?: "up" | "down";
+  /** Redis mode only: what /api/resource does while Redis is down (open = serve unlimited, closed = 503). */
+  failureMode?: "open" | "closed";
+  algorithm: Algorithm | null;
+  keyBy: KeyBy | null;
 }
 
 export interface WhoamiResponse {
@@ -74,6 +86,10 @@ export interface ResourceResponse {
 
 /** GET /api/stats (backend task 07): the server's own tally since the last deploy. Fields the UI uses. */
 export interface StatsResponse {
+  /** Which node answered. With store "memory" in a cluster, the numbers are that node's traffic only. */
+  nodeId?: string;
+  /** "redis": any node returns the whole cluster's numbers. */
+  store?: LimiterStore;
   since: number;
   resource: { total: number; s200: number; s401: number; s429: number; other: number; byReason: Record<string, number> };
   /** /api/login only: the expired-token endpoint is not counted. Includes the round's setup logins. */

@@ -94,6 +94,8 @@ export interface RequestRecord extends ScenarioEvent {
   servedAt?: number;
   /** Actual ms from the start of firing when the request left (timers drift, so this isn't `at`). */
   sentAt: number;
+  /** Served with `X-RateLimit-Degraded: true`: the limiter's store was down and the request was not rate limited. */
+  degraded?: true;
 }
 
 export interface StatusCounts {
@@ -116,6 +118,8 @@ export interface Tally {
   attackTotal: number;
   attackStopped: number;
   attackPassed: number;
+  /** Requests served without rate limiting because the store was down (fail open). Still counted as accepted. */
+  degraded: number;
   /** Non-200 outcomes by reason: 401 reasons, "rate_limited", "invalid_credentials", "network", … */
   byReason: Record<string, number>;
   byClient: Record<string, StatusCounts>;
@@ -150,4 +154,6 @@ export interface RoundResult {
   durationMs: number;
   timeline?: BoundaryTimeline;
   crossCheck?: CrossCheck;
+  /** Why there's no cross-check, e.g. a memory-mode cluster where one node's stats are only its own slice. */
+  crossCheckNote?: string;
 }

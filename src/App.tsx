@@ -3,7 +3,7 @@ import { BriefingCard } from "./components/BriefingCard";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { DefensePreview } from "./components/DefensePreview";
 import { DeployButton } from "./components/DeployButton";
-import { ErrorBanner, OfflineBanner, TabHiddenBanner } from "./components/ErrorBanner";
+import { DegradedBanner, ErrorBanner, OfflineBanner, TabHiddenBanner } from "./components/ErrorBanner";
 import { FinalSummary } from "./components/FinalSummary";
 import { Header } from "./components/Header";
 import { LiveFiring } from "./components/LiveFiring";
@@ -11,16 +11,19 @@ import { ResultsCard } from "./components/ResultsCard";
 import { Button } from "./components/ui/Button";
 import { crossCheck } from "./crossCheck";
 import { useServerHealth } from "./hooks/useServerHealth";
-import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, type RoundRun } from "./runRound";
+import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, StoreUnavailableError, type RoundRun } from "./runRound";
 import { edgeExploitTiming, ROUND_COUNT, scenarioFor } from "./scenarios";
 import { score, tally } from "./scoring";
-import { initialState, reducer, type AppError } from "./state";
+import { initialState, reducer, type AppError, type ServerState } from "./state";
 import type { BoundaryTimeline, DefenseConfig, Scenario } from "./types";
 
 /** Maps a runRound failure to what the player sees. null = aborted on purpose (no message). */
 function toAppError(err: unknown): AppError | null {
   if (err instanceof RoundAbortedError) return null;
   if (err instanceof OfflineError) return { kind: "offline", message: err.message };
+  if (err instanceof StoreUnavailableError) {
+    return { kind: "degraded", message: `${err.message}. The backend's Redis store is down; try again once it recovers.` };
+  }
   if (err instanceof DeployError) {
     return err.status === 400
       ? { kind: "invalid_config", message: "The server rejected this defense.", details: err.details }
@@ -48,11 +51,21 @@ function boundaryTimeline(run: RoundRun, scenario: Scenario): BoundaryTimeline {
   return { points };
 }
 
+/** A round with failed requests isn't scored. Says why: lost connection (status 0) or server errors (5xx). */
+function roundErrors(run: RoundRun, errors: number, total: number): Error {
+  const failed = run.records.filter((r) => r.status === 0 || r.status >= 500);
+  const serverSide = failed.filter((r) => r.status >= 500);
+  if (serverSide.length === 0) return new OfflineError(`Lost the backend mid-round: ${errors} of ${total} requests failed. No XP recorded.`);
+  const reasons = [...new Set(serverSide.map((r) => `${r.status} ${r.reason ?? ""}`.trim()))].join(", ");
+  const message = `${errors} of ${total} requests failed (${reasons}). No XP recorded.`;
+  return serverSide.some((r) => r.status === 503) ? new StoreUnavailableError(message.replace(/\.$/, "")) : new Error(message);
+}
+
 function Game() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const controllerRef = useRef<AbortController | null>(null);
 
-  const onHealth = useCallback((online: boolean) => dispatch({ type: "SERVER_STATUS", online }), []);
+  const onHealth = useCallback((server: ServerState) => dispatch({ type: "SERVER_STATUS", server }), []);
   useServerHealth(onHealth);
 
   // Abort an in-flight round if the game unmounts.
@@ -74,7 +87,7 @@ function Game() {
 
   // Started only from this click handler, never from an effect (StrictMode runs effects twice).
   async function handleDeploy() {
-    if (controllerRef.current || state.phase !== "configuring" || state.serverOnline !== true) return;
+    if (controllerRef.current || state.phase !== "configuring" || state.server.status !== "online") return;
     const ac = new AbortController();
     controllerRef.current = ac;
     const round = state.round;
@@ -90,14 +103,18 @@ function Game() {
         onProgress: (progress) => dispatch({ type: "FIRING_PROGRESS", progress }),
       });
       const t = tally(run.records);
-      // Lost requests make the round's numbers incomplete: don't score it.
-      if (t.errors > 0) throw new OfflineError(`Lost the backend mid-round: ${t.errors} of ${t.total} requests failed. No XP recorded.`);
+      // Failed requests (network or 5xx) make the round's numbers incomplete: don't score it.
+      if (t.errors > 0) throw roundErrors(run, t.errors, t.total);
       const s = score(t, run.deployed.config, run.events, scenario, { startAt: run.startAt, windowEpochMs: run.deployed.windowEpochMs });
       const timeline = scenario.id === 2 ? boundaryTimeline(run, scenario) : undefined;
-      const check = run.serverStats ? crossCheck(t, run.serverStats, scenario, run.deployed.config) : undefined;
+      // On a memory-mode cluster one node's /api/stats is only that node's slice: comparing it would be a false mismatch.
+      const stats = run.serverStats;
+      const perNodeOnly = stats?.store === "memory" && stats.nodeId !== undefined && stats.nodeId !== "single";
+      const check = stats && !perNodeOnly ? crossCheck(t, stats, scenario, run.deployed.config) : undefined;
+      const crossCheckNote = perNodeOnly ? `Per-node stats (${stats.nodeId}): cross-check unavailable on a memory-mode cluster.` : undefined;
       dispatch({
         type: "ROUND_COMPLETE",
-        result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline, crossCheck: check },
+        result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline, crossCheck: check, crossCheckNote },
       });
     } catch (err) {
       dispatch({ type: "ROUND_FAILED", error: toAppError(err) });
@@ -116,13 +133,14 @@ function Game() {
   // the player is looking after clicking Deploy); otherwise at the top.
   const notices = (
     <>
-      {state.serverOnline === false && <OfflineBanner />}
+      {state.server.status === "offline" && <OfflineBanner />}
+      {state.server.status === "degraded" && <DegradedBanner failureMode={state.server.failureMode} />}
       {state.error && (
         <ErrorBanner
           error={state.error}
           onDismiss={dismissError}
           onRetry={state.error.kind === "setup" && state.phase === "configuring" ? handleDeploy : undefined}
-          retryDisabled={state.serverOnline !== true}
+          retryDisabled={state.server.status !== "online"}
         />
       )}
       {tabWarning && <TabHiddenBanner onDismiss={() => setTabWarning(false)} />}
@@ -135,7 +153,7 @@ function Game() {
 
       <div className="shell">
         <section className="hero">
-          <Header round={state.round} score={state.score} serverOnline={state.serverOnline} />
+          <Header round={state.round} score={state.score} server={state.server} />
           {state.phase !== "summary" && (
             <BriefingCard
               scenario={scenario}
@@ -151,7 +169,7 @@ function Game() {
             <DefensePreview config={state.config} />
             {showConfig && notices}
             {state.phase !== "results" && (
-              <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.serverOnline !== true} onDeploy={handleDeploy} />
+              <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.server.status !== "online"} onDeploy={handleDeploy} />
             )}
             {isFiring && (
               <>

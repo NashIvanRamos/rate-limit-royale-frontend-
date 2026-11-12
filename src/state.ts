@@ -7,6 +7,7 @@
 //                              └──────RETRY_ROUND (replaces this round's result)───────┘
 //                                                                                    summary ──RESTART──▶ briefing
 
+import type { LimiterStore } from "./api";
 import type { StageEvent, Stage } from "./runRound";
 import type { FiringProgress, LiveCounts } from "./scheduler";
 import { ROUND_COUNT } from "./scenarios";
@@ -29,7 +30,18 @@ export interface FiringState {
   firesAt?: number;
 }
 
-export type AppErrorKind = "offline" | "invalid_config" | "setup" | "unknown";
+export type AppErrorKind = "offline" | "degraded" | "invalid_config" | "setup" | "unknown";
+
+/** checking until the first health answer; degraded = Redis store down (deploys would 503). */
+export type ServerHealth = "checking" | "online" | "degraded" | "offline";
+
+export interface ServerState {
+  status: ServerHealth;
+  /** "single", or "node-1".."node-3" behind the cluster's load balancer. */
+  nodeId?: string;
+  store?: LimiterStore;
+  failureMode?: "open" | "closed";
+}
 
 export interface AppError {
   kind: AppErrorKind;
@@ -48,8 +60,7 @@ export interface State {
   firing: FiringState;
   results: RoundResult | null;
   history: RoundResult[];
-  /** null until the first health check answers ("Checking…"). */
-  serverOnline: boolean | null;
+  server: ServerState;
   error: AppError | null;
 }
 
@@ -66,7 +77,7 @@ export type Action =
   /** Replay the current round: its XP and history entry are removed, so only the last attempt counts. */
   | { type: "RETRY_ROUND" }
   | { type: "RESTART" }
-  | { type: "SERVER_STATUS"; online: boolean }
+  | { type: "SERVER_STATUS"; server: ServerState }
   | { type: "DISMISS_ERROR" };
 
 export const INITIAL_CONFIG: DefenseConfig = { algorithm: "fixed", maxRequests: 10, windowMs: 10_000, keyBy: "ip" };
@@ -89,7 +100,7 @@ export const initialState: State = {
   firing: emptyFiring(),
   results: null,
   history: [],
-  serverOnline: null,
+  server: { status: "checking" },
   error: null,
 };
 
@@ -116,7 +127,7 @@ export function reducer(state: State, action: Action): State {
       return { ...state, config: clampConfig({ ...state.config, ...action.config }) };
 
     case "DEPLOY_START":
-      if (state.phase !== "configuring" || state.serverOnline !== true) return state;
+      if (state.phase !== "configuring" || state.server.status !== "online") return state;
       return { ...state, phase: "firing", firing: emptyFiring(), error: null, results: null };
 
     case "FIRING_STAGE": {
@@ -170,10 +181,14 @@ export function reducer(state: State, action: Action): State {
 
     case "RESTART":
       if (state.phase !== "summary") return state;
-      return { ...initialState, config: state.config, serverOnline: state.serverOnline };
+      return { ...initialState, config: state.config, server: state.server };
 
-    case "SERVER_STATUS":
-      return state.serverOnline === action.online ? state : { ...state, serverOnline: action.online };
+    case "SERVER_STATUS": {
+      const a = action.server;
+      const b = state.server;
+      const same = a.status === b.status && a.nodeId === b.nodeId && a.store === b.store && a.failureMode === b.failureMode;
+      return same ? state : { ...state, server: a };
+    }
 
     case "DISMISS_ERROR":
       return state.error ? { ...state, error: null } : state;
