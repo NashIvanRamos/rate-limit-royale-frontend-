@@ -182,7 +182,7 @@ function Game() {
               config={state.config}
               onChange={setConfig}
               disabled={state.phase !== "configuring"}
-              showLimiterStore={canToggleLimiterStore(state.server)}
+              limiterStoreAvailable={canToggleLimiterStore(state.server)}
             />
             <DefensePreview config={state.config} showLimiterStore={canToggleLimiterStore(state.server)} />
             {showConfig && notices}
@@ -191,7 +191,16 @@ function Game() {
             )}
             {isFiring && (
               <>
-                <LiveFiring firing={state.firing} scenario={scenario} config={state.config} />
+                <LiveFiring
+                  firing={state.firing}
+                  scenario={scenario}
+                  config={state.config}
+                  perNode={
+                    state.server.nodeId !== undefined &&
+                    state.server.nodeId !== "single" &&
+                    (canToggleLimiterStore(state.server) ? (state.config.limiterStore ?? "redis") === "memory" : state.server.store === "memory")
+                  }
+                />
                 <Button variant="ghost" fullWidth onClick={abortRound}>
                   Abort round
                 </Button>
