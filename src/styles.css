@@ -715,6 +715,47 @@ input {
   font-size: 15px;
 }
 
+/* "Who got through": attacker vs real users vs all traffic. */
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+
+.who__row {
+  display: grid;
+  grid-template-columns: 92px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.who__row--total {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.who__name { font-weight: 650; color: var(--text-strong); }
+.who__value { color: var(--text); }
+.who__aside { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.who__aside.tone-accepted { color: var(--accepted); }
+.who__aside.tone-auth { color: var(--auth); }
+
+@media (max-width: 480px) {
+  .who__row { grid-template-columns: 1fr; gap: 2px; }
+}
+
+.results__scope {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
 .results__attack {
   margin: 0;
   font-size: 12px;

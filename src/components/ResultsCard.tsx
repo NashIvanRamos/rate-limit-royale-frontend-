@@ -34,6 +34,46 @@ function ResultTile({ label, value, tone = "neutral", note }: { label: string; v
   );
 }
 
+/**
+ * Splits the all-traffic counters into the attacker and the real users, so every number on the card adds up:
+ * SUCCESSFUL (200) = attacker through + real users served.
+ */
+function WhoGotThrough({ result }: { result: RoundResult }) {
+  const t = result.tally;
+  const legitSent = t.total - t.attackTotal;
+  const legitServed = t.accepted - t.attackPassed;
+  const check = result.crossCheck;
+  const confirmed = check && check.resource.match && (!check.login || check.login.match);
+  return (
+    <div className="who" aria-label="Who got through">
+      <span className="label">Who got through</span>
+      <div className="who__row">
+        <span className="who__name">Attacker</span>
+        <span className="who__value num">
+          {t.attackTotal} sent → <span className="tone-accepted">{t.attackPassed} through ({pct(t.attackPassed, t.attackTotal)}%)</span> ·{" "}
+          <span className="tone-blocked">{t.attackStopped} stopped</span>
+        </span>
+        <span className="who__aside num">allowance {result.allowance}</span>
+      </div>
+      <div className="who__row">
+        <span className="who__name">Real users</span>
+        <span className="who__value num">
+          {legitSent} sent → <span className="tone-accepted">{legitServed} served</span> ·{" "}
+          <span className={t.legitBlocks > 0 ? "tone-blocked" : undefined}>{t.legitBlocks} blocked</span>
+          {t.legitExpired > 0 && <span className="tone-auth"> · {t.legitExpired} expired (not counted as blocks)</span>}
+        </span>
+      </div>
+      <div className="who__row who__row--total">
+        <span className="who__name">All traffic</span>
+        <span className="who__value num">
+          {t.accepted} OK (200) · {t.blocked} blocked (429) · {t.rejectedAuth} auth failed (401)
+        </span>
+        {check && <span className={`who__aside ${confirmed ? "tone-accepted" : "tone-auth"}`}>{confirmed ? "✓ server confirms" : "server differs"}</span>}
+      </div>
+    </div>
+  );
+}
+
 const triple = (c: StatusCounts) => `${c.s200} / ${c.s429} / ${c.s401}`;
 
 /** "Server confirms: 182 / 18 / 0 ✓" (200 / 429 / 401), or an amber mismatch with the server's numbers. */
@@ -102,6 +142,7 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry, re
         Battle results
       </h2>
 
+      <p className="results__scope">All traffic (attacker + real users)</p>
       <div className={show401 ? "result-grid result-grid--3" : "result-grid"}>
         <ResultTile label="Successful (200)" tone="accepted" value={<CountUp value={t.accepted} className="" />} />
         <ResultTile label="Blocked (429)" tone="blocked" value={<CountUp value={t.blocked} className="" />} />
@@ -117,9 +158,7 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry, re
       </div>
 
       <div className="stack" style={{ gap: 2 }}>
-        <p className="results__attack num">
-          Attack: {t.attackTotal} sent · {t.attackStopped} stopped · {t.attackPassed} passed (allowance {result.allowance})
-        </p>
+        <WhoGotThrough result={result} />
         {result.crossCheck && <ServerCheck check={result.crossCheck} />}
         {result.crossCheckNote && <p className="results__server">{result.crossCheckNote}</p>}
         {Object.keys(t.byNode).length > 1 && (
@@ -141,7 +180,9 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry, re
       {result.feed && result.feed.length > 0 && <ResponseFeed recent={result.feed} clients={scenario.clients} live={false} />}
 
       <div className="stack" style={{ gap: 10 }}>
-        <h3 className="results__subtitle">HTTP response distribution</h3>
+        <h3 className="results__subtitle">
+          HTTP response distribution <span className="results__scope">· all traffic (attacker + real users)</span>
+        </h3>
         <DistributionBar
           hideLegend
           label="HTTP response distribution"
@@ -153,11 +194,11 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry, re
         />
         <div className="row spread dist-ends">
           {/* Same order as the bar: accepted, blocked, auth rejected. */}
-          <span className="tone-accepted">{pct(t.accepted, answered)}% Accepted</span>
+          <span className="tone-accepted">All traffic: {pct(t.accepted, answered)}% accepted</span>
           <span className="tone-blocked">
-            {pct(t.blocked, answered)}% {show401 ? "Blocked" : "Rejected"}
+            {pct(t.blocked, answered)}% {show401 ? "blocked" : "rejected"}
           </span>
-          {show401 && <span className="tone-auth">{pct(t.rejectedAuth, answered)}% Auth rejected</span>}
+          {show401 && <span className="tone-auth">{pct(t.rejectedAuth, answered)}% auth rejected</span>}
         </div>
       </div>
 
