@@ -608,6 +608,18 @@ input {
   text-align: right;
 }
 
+/* ---------- Demo preset line ---------- */
+
+.demo-preset {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
 /* ---------- Deploy ---------- */
 
 .deploy__caption {
