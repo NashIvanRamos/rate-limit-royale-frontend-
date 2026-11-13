@@ -3,7 +3,7 @@
 
 import { apiRequest, CLIENT_ERRORS, type ResourceResponse } from "./api";
 import { isError } from "./scoring";
-import type { ClientSpec, RequestRecord, ScenarioEvent, StatusCounts } from "./types";
+import type { ClientSpec, FeedItem, RequestRecord, ScenarioEvent, StatusCounts } from "./types";
 
 /** Running counts for the live firing view (task 13). Only statuses the game cares about. */
 export interface LiveCounts {
@@ -14,16 +14,7 @@ export interface LiveCounts {
   errors: number;
 }
 
-/** One response in the live feed (newest first). */
-export interface FeedItem {
-  /** Order of arrival, unique within a round (React key). */
-  seq: number;
-  clientId: string;
-  status: number;
-  reason?: string;
-  nodeId?: string;
-  nodePort?: number;
-}
+export type { FeedItem } from "./types";
 
 /** How many recent responses the live feed keeps. */
 export const FEED_SIZE = 14;

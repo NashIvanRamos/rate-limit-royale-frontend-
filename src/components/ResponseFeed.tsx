@@ -1,5 +1,39 @@
-import type { FeedItem } from "../scheduler";
-import type { ClientSpec } from "../types";
+import { useEffect, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import type { ClientSpec, FeedItem } from "../types";
+
+/** One new response slides in this often while live, so each chip is readable. */
+export const FEED_STEP_MS = 400;
+/** Chips kept on screen. */
+const FEED_VISIBLE = 10;
+
+/**
+ * Paces the live feed: every FEED_STEP_MS the newest response not shown yet slides in on top. Responses arrive far
+ * faster than anyone can read (20+/s), so the feed shows a readable sample of the newest real responses. The counters
+ * above it count every request. With reduced motion, the feed just mirrors the latest responses.
+ */
+function usePacedFeed(recent: FeedItem[], live: boolean): FeedItem[] {
+  const reduceMotion = usePrefersReducedMotion();
+  const latest = useRef(recent);
+  useEffect(() => {
+    latest.current = recent;
+  }, [recent]);
+  const [shown, setShown] = useState<FeedItem[]>(() => (live ? [] : recent.slice(0, FEED_VISIBLE)));
+
+  useEffect(() => {
+    if (!live || reduceMotion) return;
+    const timer = setInterval(() => {
+      setShown((prev) => {
+        const newest = latest.current[0];
+        if (!newest || newest.seq === prev[0]?.seq) return prev;
+        return [newest, ...prev].slice(0, FEED_VISIBLE);
+      });
+    }, FEED_STEP_MS);
+    return () => clearInterval(timer);
+  }, [live, reduceMotion]);
+
+  return !live || reduceMotion ? recent.slice(0, FEED_VISIBLE) : shown;
+}
 
 /** What each status means to the player. Colour still comes from the status (green 200, red 429, amber 401). */
 const STATUS_TEXT: Record<number, string> = {
@@ -29,19 +63,22 @@ function where(item: FeedItem): string | null {
 interface ResponseFeedProps {
   recent: FeedItem[];
   clients: ClientSpec[];
+  /** true while a round fires (paced, animated); false on the results screen (the round's last responses). */
+  live?: boolean;
 }
 
 /** The latest responses as they arrive, newest on top. Real responses only (from the scheduler's progress). */
-export function ResponseFeed({ recent, clients }: ResponseFeedProps) {
+export function ResponseFeed({ recent, clients, live = true }: ResponseFeedProps) {
   const byId = new Map(clients.map((c) => [c.id, c]));
+  const items = usePacedFeed(recent, live);
   return (
-    <div className="feed" aria-label="Latest responses" aria-live="off">
-      <span className="label">Live responses</span>
-      {recent.length === 0 ? (
+    <div className={live ? "feed" : "feed feed--static"} aria-label={live ? "Latest responses" : "Last responses of the round"} aria-live="off">
+      <span className="label">{live ? "Live responses (newest on top)" : "Last responses of the round (newest on top)"}</span>
+      {items.length === 0 ? (
         <span className="config__note">Waiting for the first response…</span>
       ) : (
         <ol className="feed__list">
-          {recent.map((item) => {
+          {items.map((item) => {
             const client = byId.get(item.clientId);
             const place = where(item);
             const detail = item.status === 401 && item.reason && item.reason !== "unauthorized" ? ` (${item.reason})` : "";

@@ -4,6 +4,7 @@ import { SCORING } from "../scoring";
 import type { CrossCheck, RoundResult, Scenario, StatusCounts, Tally } from "../types";
 import { BoundaryTimeline } from "./BoundaryTimeline";
 import { KeysPanel } from "./KeysPanel";
+import { ResponseFeed } from "./ResponseFeed";
 import { ScalingPanel } from "./ScalingPanel";
 import { CountUp } from "./ui/CountUp";
 import { Button } from "./ui/Button";
@@ -134,6 +135,8 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: 
           </p>
         )}
       </div>
+
+      {result.feed && result.feed.length > 0 && <ResponseFeed recent={result.feed} clients={scenario.clients} live={false} />}
 
       <div className="stack" style={{ gap: 10 }}>
         <h3 className="results__subtitle">HTTP response distribution</h3>

@@ -9,9 +9,9 @@
 
 import type { LimiterStore } from "./api";
 import type { StageEvent, Stage } from "./runRound";
-import type { FeedItem, FiringProgress, LiveCounts } from "./scheduler";
+import type { FiringProgress, LiveCounts } from "./scheduler";
 import { ROUND_COUNT } from "./scenarios";
-import { CONFIG_LIMITS, type DefenseConfig, type RoundId, type RoundResult, type StatusCounts, type ValidationIssue } from "./types";
+import { CONFIG_LIMITS, type DefenseConfig, type FeedItem, type RoundId, type RoundResult, type StatusCounts, type ValidationIssue } from "./types";
 
 export type Phase = "briefing" | "configuring" | "firing" | "results" | "summary";
 
@@ -164,15 +164,18 @@ export function reducer(state: State, action: Action): State {
       return { ...state, firing: { ...state.firing, done, total, counts, byClient, recent } };
     }
 
-    case "ROUND_COMPLETE":
+    case "ROUND_COMPLETE": {
       if (state.phase !== "firing") return state;
+      // Keep the last responses on the result, so the feed stays visible after the round.
+      const result: RoundResult = { ...action.result, feed: action.result.feed ?? state.firing.recent };
       return {
         ...state,
         phase: "results",
-        score: state.score + action.result.xp,
-        results: action.result,
-        history: [...state.history, action.result],
+        score: state.score + result.xp,
+        results: result,
+        history: [...state.history, result],
       };
+    }
 
     case "ROUND_FAILED":
       if (state.phase !== "firing") return state;
