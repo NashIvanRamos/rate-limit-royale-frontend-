@@ -9,7 +9,7 @@
 
 import type { LimiterStore } from "./api";
 import type { StageEvent, Stage } from "./runRound";
-import type { FiringProgress, LiveCounts } from "./scheduler";
+import type { FeedItem, FiringProgress, LiveCounts } from "./scheduler";
 import { ROUND_COUNT } from "./scenarios";
 import { CONFIG_LIMITS, type DefenseConfig, type RoundId, type RoundResult, type StatusCounts, type ValidationIssue } from "./types";
 
@@ -26,6 +26,8 @@ export interface FiringState {
   counts: LiveCounts;
   /** Live per-client counts (round 5's keys panel). */
   byClient: Record<string, StatusCounts>;
+  /** Latest responses for the live feed, newest first. */
+  recent: FeedItem[];
   /** waiting-boundary only: Date.now() time the first attacker request fires. */
   firesAt?: number;
 }
@@ -101,6 +103,7 @@ const emptyFiring = (): FiringState => ({
   total: 0,
   counts: { s200: 0, s429: 0, s401: 0, errors: 0 },
   byClient: {},
+  recent: [],
 });
 
 export const initialState: State = {
@@ -157,8 +160,8 @@ export function reducer(state: State, action: Action): State {
 
     case "FIRING_PROGRESS": {
       if (state.phase !== "firing") return state;
-      const { done, total, counts, byClient } = action.progress;
-      return { ...state, firing: { ...state.firing, done, total, counts, byClient } };
+      const { done, total, counts, byClient, recent } = action.progress;
+      return { ...state, firing: { ...state.firing, done, total, counts, byClient, recent } };
     }
 
     case "ROUND_COMPLETE":

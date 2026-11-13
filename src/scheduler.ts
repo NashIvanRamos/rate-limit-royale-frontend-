@@ -14,6 +14,20 @@ export interface LiveCounts {
   errors: number;
 }
 
+/** One response in the live feed (newest first). */
+export interface FeedItem {
+  /** Order of arrival, unique within a round (React key). */
+  seq: number;
+  clientId: string;
+  status: number;
+  reason?: string;
+  nodeId?: string;
+  nodePort?: number;
+}
+
+/** How many recent responses the live feed keeps. */
+export const FEED_SIZE = 14;
+
 export interface FiringProgress {
   /** Requests that got a response (or a network error). */
   done: number;
@@ -21,6 +35,8 @@ export interface FiringProgress {
   counts: LiveCounts;
   /** Per client id, for the round 5 "50 keys vs 1 key" view. Fresh objects on every report. */
   byClient: Record<string, StatusCounts>;
+  /** The latest responses, newest first (at most FEED_SIZE). */
+  recent: FeedItem[];
 }
 
 export interface RunScenarioOptions {
@@ -62,6 +78,8 @@ export function runScenario({
   const records: RequestRecord[] = [];
   const counts: LiveCounts = { s200: 0, s429: 0, s401: 0, errors: 0 };
   const byClient = new Map<string, StatusCounts>();
+  const recent: FeedItem[] = [];
+  let seq = 0;
   const total = events.length;
 
   const emit = () =>
@@ -70,6 +88,7 @@ export function runScenario({
       total,
       counts: { ...counts },
       byClient: Object.fromEntries([...byClient].map(([id, c]) => [id, { ...c }])),
+      recent: recent.slice(),
     });
 
   if (signal?.aborted || total === 0) {
@@ -155,6 +174,8 @@ export function runScenario({
         };
         const nodeId = result.headers.get("X-Node-Id");
         if (nodeId) record.nodeId = nodeId;
+        const nodePort = Number(result.headers.get("X-Node-Port"));
+        if (Number.isInteger(nodePort) && nodePort > 0) record.nodePort = nodePort;
         // Served while the limiter's store was down (fail open): not rate limited.
         if (result.headers.get("X-RateLimit-Degraded") === "true") record.degraded = true;
         if (result.ok) {
@@ -163,6 +184,8 @@ export function runScenario({
           record.reason = result.error.reason ?? result.error.error;
         }
         records.push(record);
+        recent.unshift({ seq: seq++, clientId: ev.clientId, status: record.status, reason: record.reason, nodeId: record.nodeId, nodePort: record.nodePort });
+        if (recent.length > FEED_SIZE) recent.length = FEED_SIZE;
 
         let perClient = byClient.get(ev.clientId);
         if (!perClient) byClient.set(ev.clientId, (perClient = { s200: 0, s429: 0, s401: 0 }));

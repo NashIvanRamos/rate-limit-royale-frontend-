@@ -104,6 +104,8 @@ export interface RequestRecord extends ScenarioEvent {
   sentAt: number;
   /** X-Node-Id of the backend node that answered ("single" on one node). */
   nodeId?: string;
+  /** X-Node-Port: the port of the node that answered (where NGINX routed it). Backend tasks2/10+. */
+  nodePort?: number;
   /** Served with `X-RateLimit-Degraded: true`: the limiter's store was down and the request was not rate limited. */
   degraded?: true;
 }
@@ -137,6 +139,8 @@ export interface Tally {
   byPath: Record<ApiPath, StatusCounts>;
   /** Answered requests per backend node (X-Node-Id). One key ("single") on a single node. */
   byNode: Record<string, number>;
+  /** The port each node reported (X-Node-Port), when the backend sends it. */
+  nodePorts: Record<string, number>;
   /** Attacker requests per backend node: the scaling story (spread by round robin, pinned by sticky routing). */
   attackByNode: Record<string, number>;
   /** Attacker requests that passed (200), per backend node. */

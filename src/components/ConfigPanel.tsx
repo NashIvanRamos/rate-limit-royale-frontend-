@@ -23,12 +23,12 @@ interface ConfigPanelProps {
   onChange: (patch: Partial<DefenseConfig>) => void;
   /** Locks every control (mid-round, or showing what was deployed). */
   disabled?: boolean;
-  /** Show the per-round limiter store toggle (a cluster whose backend supports both stores). */
-  showLimiterStore?: boolean;
+  /** The per-round limiter store toggle works here (a cluster whose backend supports both stores). Shown either way. */
+  limiterStoreAvailable?: boolean;
 }
 
 /** The reducer clamps every value to CONFIG_LIMITS, so no invalid config can be built here. */
-export function ConfigPanel({ config, onChange, disabled, showLimiterStore }: ConfigPanelProps) {
+export function ConfigPanel({ config, onChange, disabled, limiterStoreAvailable }: ConfigPanelProps) {
   // The backend's default for a round with no choice is the shared store.
   const limiterStore = config.limiterStore ?? "redis";
   const { maxRequests: maxR, windowMs: win } = CONFIG_LIMITS;
@@ -86,19 +86,24 @@ export function ConfigPanel({ config, onChange, disabled, showLimiterStore }: Co
           <span className="config__note">{KEY_BY_HELP[config.keyBy]}</span>
         </div>
 
-        {showLimiterStore && (
-          <div className="stack" style={{ gap: 8 }}>
-            <span className="label">Limiter state across the cluster</span>
-            <SegmentedControl
-              label="Limiter state across the cluster"
-              options={LIMITER_STORE_OPTIONS}
-              value={limiterStore}
-              onChange={(s) => onChange({ limiterStore: s })}
-              disabled={disabled}
-            />
+        <div className="stack" style={{ gap: 8 }}>
+          <span className="label">Limiter state across the cluster</span>
+          <SegmentedControl
+            label="Limiter state across the cluster"
+            options={LIMITER_STORE_OPTIONS}
+            value={limiterStore}
+            onChange={(s) => onChange({ limiterStore: s })}
+            disabled={disabled || !limiterStoreAvailable}
+          />
+          {limiterStoreAvailable ? (
             <span className="config__note">{LIMITER_STORE_HELP[limiterStore]}</span>
-          </div>
-        )}
+          ) : (
+            <span className="config__note">
+              Needs the 3-node cluster with Redis: run <code className="num">npm run cluster -- --store redis</code> in the backend and start this
+              app with <code className="num">API_TARGET=http://localhost:8080 npm run dev</code>.
+            </span>
+          )}
+        </div>
       </fieldset>
     </div>
   );

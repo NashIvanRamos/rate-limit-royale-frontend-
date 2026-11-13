@@ -124,7 +124,7 @@ export function ResultsCard({ result, scenario, isLastRound, onNext, onRetry }: 
             Served by:{" "}
             {Object.entries(t.byNode)
               .sort(([a], [b]) => a.localeCompare(b))
-              .map(([node, n]) => `${node} ${n}`)
+              .map(([node, n]) => `${node}${t.nodePorts[node] ? ` (:${t.nodePorts[node]})` : ""} ${n}`)
               .join(" · ")}
           </p>
         )}
