@@ -15,7 +15,7 @@ import { API_NODE_COUNT } from "./api";
 import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, StoreUnavailableError, type RoundRun } from "./runRound";
 import { edgeExploitTiming, ROUND_COUNT, scenarioFor } from "./scenarios";
 import { score, tally } from "./scoring";
-import { initialState, reducer, type AppError, type ServerState } from "./state";
+import { canToggleLimiterStore, initialState, reducer, type AppError, type ServerState } from "./state";
 import type { BoundaryTimeline, DefenseConfig, Scenario } from "./types";
 
 /** Maps a runRound failure to what the player sees. null = aborted on purpose (no message). */
@@ -92,8 +92,10 @@ function Game() {
     const ac = new AbortController();
     controllerRef.current = ac;
     const round = state.round;
-    const config = state.config;
     const server = state.server;
+    // Send limiterStore only to a backend that advertises the per-round toggle: older ones reject unknown fields.
+    const { limiterStore, ...base } = state.config;
+    const config = canToggleLimiterStore(server) ? { ...base, limiterStore: limiterStore ?? "redis" } : base;
     setTabWarning(false);
     dispatch({ type: "DEPLOY_START" });
     try {
@@ -110,6 +112,8 @@ function Game() {
       if (t.errors > 0) throw roundErrors(run, t.errors, t.total);
       const s = score(t, run.deployed.config, run.events, scenario, { startAt: run.startAt, windowEpochMs: run.deployed.windowEpochMs });
       const timeline = scenario.id === 2 ? boundaryTimeline(run, scenario) : undefined;
+      // The round's own limiter store (the deploy echoes the effective value), else the process-wide store.
+      const roundStore = run.deployed.config.limiterStore ?? server.store;
       // On a memory-mode cluster one node's /api/stats is only that node's slice: comparing it would be a false
       // mismatch. With the nodes known (API_NODES), runRound sums every node's stats instead.
       const stats = run.serverStats;
@@ -119,7 +123,7 @@ function Game() {
       dispatch({
         type: "ROUND_COMPLETE",
         result: { round, config: run.deployed.config, tally: t, ...s, durationMs: run.durationMs, timeline, crossCheck: check, crossCheckNote,
-          cluster: server.nodeId && server.nodeId !== "single" && server.store ? { store: server.store } : undefined,
+          cluster: server.nodeId && server.nodeId !== "single" && roundStore ? { store: roundStore } : undefined,
         },
       });
     } catch (err) {
@@ -174,8 +178,13 @@ function Game() {
 
         {(state.phase === "configuring" || state.phase === "firing" || state.phase === "results") && (
           <section className="section">
-            <ConfigPanel config={state.config} onChange={setConfig} disabled={state.phase !== "configuring"} />
-            <DefensePreview config={state.config} />
+            <ConfigPanel
+              config={state.config}
+              onChange={setConfig}
+              disabled={state.phase !== "configuring"}
+              showLimiterStore={canToggleLimiterStore(state.server)}
+            />
+            <DefensePreview config={state.config} showLimiterStore={canToggleLimiterStore(state.server)} />
             {showConfig && notices}
             {state.phase !== "results" && (
               <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.server.status !== "online"} onDeploy={handleDeploy} />

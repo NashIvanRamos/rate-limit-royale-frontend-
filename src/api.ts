@@ -2,7 +2,9 @@
 // resolves to a discriminated ApiResult. Paths are relative (/api/...) so they go through the Vite proxy,
 // which is what makes the simulated X-Forwarded-For IPs work.
 
-import type { Algorithm, DefenseConfig, KeyBy, LoginBody, ValidationIssue } from "./types";
+import type { Algorithm, DefenseConfig, KeyBy, LimiterStore, LoginBody, ValidationIssue } from "./types";
+
+export type { LimiterStore };
 
 // ─── Result shape ────────────────────────────────────────────────────────────
 
@@ -33,8 +35,6 @@ export const CLIENT_ERRORS = Object.freeze({
 
 // ─── Response bodies ─────────────────────────────────────────────────────────
 
-export type LimiterStore = "memory" | "redis";
-
 /**
  * Always HTTP 200. "degraded" = the Redis store is unreachable (then algorithm/keyBy are null).
  * nodeId is "single" on one node, "node-1".."node-3" in the cluster. Older backends omit nodeId/store.
@@ -51,6 +51,10 @@ export interface HealthResponse {
   failureMode?: "open" | "closed";
   algorithm: Algorithm | null;
   keyBy: KeyBy | null;
+  /** Limiter stores this process can run a round on (backend tasks2/09). Both = the per-round toggle is available. */
+  limiterStores?: LimiterStore[];
+  /** The current round's limiter store. null while Redis is down. */
+  limiterStore?: LimiterStore | null;
 }
 
 export interface WhoamiResponse {
@@ -90,6 +94,8 @@ export interface StatsResponse {
   nodeId?: string;
   /** "redis": any node returns the whole cluster's numbers. */
   store?: LimiterStore;
+  /** The current round's limiter store. In a "memory" round, trackedKeys is the answering node's own count. */
+  limiterStore?: LimiterStore;
   since: number;
   resource: { total: number; s200: number; s401: number; s429: number; other: number; byReason: Record<string, number> };
   /** /api/login only: the expired-token endpoint is not counted. Includes the round's setup logins. */
@@ -205,6 +211,8 @@ export function deploy(config: DefenseConfig, signal?: AbortSignal, node?: numbe
     maxRequests: config.maxRequests,
     windowMs: config.windowMs,
     keyBy: config.keyBy,
+    // Only present when the caller set it (i.e. the backend advertised the per-round toggle).
+    ...(config.limiterStore ? { limiterStore: config.limiterStore } : {}),
   };
   return apiRequest<DefenseSnapshot>(controlPath("/api/defense", node), { method: "POST", body, signal });
 }

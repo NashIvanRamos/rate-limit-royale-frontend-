@@ -24,7 +24,12 @@ export function crossCheck(t: Tally, server: StatsResponse, scenario: Scenario, 
       .map((c) => (config.keyBy === "user" ? c.auth.username ?? c.id : c.ip)),
   ).size;
 
+  // A per-node round on a Redis-backed cluster: counts are cluster-wide, but trackedKeys is the answering node's own.
+  const keysNode =
+    server.limiterStore === "memory" && server.store === "redis" && server.nodeId && server.nodeId !== "single" ? server.nodeId : undefined;
+
   return {
+    keysNode,
     resource: { client: { ...resourceClient }, server: resourceServer, match: same(resourceClient, resourceServer) },
     login: sentLogins ? { client: { ...loginClient }, server: loginServer, match: same(loginClient, loginServer) } : undefined,
     trackedKeys: server.trackedKeys,

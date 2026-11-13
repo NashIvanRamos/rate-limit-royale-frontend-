@@ -1,5 +1,5 @@
-import { ALGORITHM_NAMES, ALGORITHM_TRADEOFFS, formatWindow, KEY_BY_HELP, KEY_BY_NAMES } from "../labels";
-import { ALGORITHMS, CONFIG_LIMITS, KEY_BY, type Algorithm, type DefenseConfig, type KeyBy } from "../types";
+import { ALGORITHM_NAMES, ALGORITHM_TRADEOFFS, formatWindow, KEY_BY_HELP, KEY_BY_NAMES, LIMITER_STORE_HELP, LIMITER_STORE_NAMES } from "../labels";
+import { ALGORITHMS, CONFIG_LIMITS, KEY_BY, type Algorithm, type DefenseConfig, type KeyBy, type LimiterStore } from "../types";
 import { Icon, type IconName } from "./ui/Icon";
 import { RadioCards, type RadioCardOption } from "./ui/RadioCards";
 import { SegmentedControl, type SegmentOption } from "./ui/SegmentedControl";
@@ -16,15 +16,21 @@ const ALGORITHM_OPTIONS: RadioCardOption<Algorithm>[] = ALGORITHMS.map((a) => ({
 
 const KEY_BY_OPTIONS: SegmentOption<KeyBy>[] = KEY_BY.map((k) => ({ value: k, label: KEY_BY_NAMES[k] }));
 
+const LIMITER_STORE_OPTIONS: SegmentOption<LimiterStore>[] = (["redis", "memory"] as const).map((s) => ({ value: s, label: LIMITER_STORE_NAMES[s] }));
+
 interface ConfigPanelProps {
   config: DefenseConfig;
   onChange: (patch: Partial<DefenseConfig>) => void;
   /** Locks every control (mid-round, or showing what was deployed). */
   disabled?: boolean;
+  /** Show the per-round limiter store toggle (a cluster whose backend supports both stores). */
+  showLimiterStore?: boolean;
 }
 
 /** The reducer clamps every value to CONFIG_LIMITS, so no invalid config can be built here. */
-export function ConfigPanel({ config, onChange, disabled }: ConfigPanelProps) {
+export function ConfigPanel({ config, onChange, disabled, showLimiterStore }: ConfigPanelProps) {
+  // The backend's default for a round with no choice is the shared store.
+  const limiterStore = config.limiterStore ?? "redis";
   const { maxRequests: maxR, windowMs: win } = CONFIG_LIMITS;
   return (
     <div className="stack" style={{ gap: 16 }}>
@@ -79,6 +85,20 @@ export function ConfigPanel({ config, onChange, disabled }: ConfigPanelProps) {
           <SegmentedControl label="Rate limit key" options={KEY_BY_OPTIONS} value={config.keyBy} onChange={(keyBy) => onChange({ keyBy })} disabled={disabled} />
           <span className="config__note">{KEY_BY_HELP[config.keyBy]}</span>
         </div>
+
+        {showLimiterStore && (
+          <div className="stack" style={{ gap: 8 }}>
+            <span className="label">Limiter state across the cluster</span>
+            <SegmentedControl
+              label="Limiter state across the cluster"
+              options={LIMITER_STORE_OPTIONS}
+              value={limiterStore}
+              onChange={(s) => onChange({ limiterStore: s })}
+              disabled={disabled}
+            />
+            <span className="config__note">{LIMITER_STORE_HELP[limiterStore]}</span>
+          </div>
+        )}
       </fieldset>
     </div>
   );

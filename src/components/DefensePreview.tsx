@@ -1,9 +1,9 @@
-import { ALGORITHM_NAMES, formatWindow, KEY_BY_NAMES, refillLabel } from "../labels";
+import { ALGORITHM_NAMES, formatWindow, KEY_BY_NAMES, LIMITER_STORE_NAMES, refillLabel } from "../labels";
 import type { DefenseConfig } from "../types";
 import { Tag } from "./ui/Tag";
 
 /** What will be deployed, mirrored live from the config. */
-export function DefensePreview({ config }: { config: DefenseConfig }) {
+export function DefensePreview({ config, showLimiterStore }: { config: DefenseConfig; showLimiterStore?: boolean }) {
   const rows: Array<[string, string]> = [
     ["Algorithm", ALGORITHM_NAMES[config.algorithm]],
     ["Max requests", String(config.maxRequests)],
@@ -11,6 +11,7 @@ export function DefensePreview({ config }: { config: DefenseConfig }) {
     ["Keying", KEY_BY_NAMES[config.keyBy]],
   ];
   if (config.algorithm === "token") rows.push(["Refill rate", refillLabel(config)]);
+  if (showLimiterStore) rows.push(["Limiter state", LIMITER_STORE_NAMES[config.limiterStore ?? "redis"]]);
 
   return (
     <section className="preview" aria-label="Defense configuration preview">
