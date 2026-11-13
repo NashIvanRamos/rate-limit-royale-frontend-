@@ -10,6 +10,7 @@
 import type { LimiterStore } from "./api";
 import type { StageEvent, Stage } from "./runRound";
 import type { FiringProgress, LiveCounts } from "./scheduler";
+import { demoPreset } from "./demo";
 import { ROUND_COUNT } from "./scenarios";
 import { CONFIG_LIMITS, type DefenseConfig, type FeedItem, type RoundId, type RoundResult, type StatusCounts, type ValidationIssue } from "./types";
 
@@ -66,6 +67,10 @@ export interface State {
   history: RoundResult[];
   server: ServerState;
   error: AppError | null;
+  /** Demo presets on (?demo=1): Continue and each Retry apply the round's next preset. */
+  demo: boolean;
+  /** Attempts at the current round so far (0 = first deploy). Picks the demo preset. */
+  attempt: number;
 }
 
 export type Action =
@@ -116,6 +121,8 @@ export const initialState: State = {
   history: [],
   server: { status: "checking" },
   error: null,
+  demo: false,
+  attempt: 0,
 };
 
 const clampInt = (v: number, { min, max }: { min: number; max: number }) => Math.min(max, Math.max(min, Math.round(v)));
@@ -135,7 +142,8 @@ export function clampConfig(config: DefenseConfig): DefenseConfig {
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "CONTINUE":
-      return state.phase === "briefing" ? { ...state, phase: "configuring" } : state;
+      if (state.phase !== "briefing") return state;
+      return { ...state, phase: "configuring", attempt: 0, config: state.demo ? clampConfig(demoPreset(state.round, 0)) : state.config };
 
     case "SET_CONFIG":
       if (state.phase !== "briefing" && state.phase !== "configuring") return state;
@@ -184,22 +192,26 @@ export function reducer(state: State, action: Action): State {
     case "NEXT_ROUND":
       if (state.phase !== "results") return state;
       if (state.round >= ROUND_COUNT) return { ...state, phase: "summary" };
-      return { ...state, phase: "briefing", round: (state.round + 1) as RoundId, results: null, error: null };
+      return { ...state, phase: "briefing", round: (state.round + 1) as RoundId, results: null, error: null, attempt: 0 };
 
-    case "RETRY_ROUND":
+    case "RETRY_ROUND": {
       if (state.phase !== "results" || !state.results) return state;
+      const attempt = state.attempt + 1;
       return {
         ...state,
+        attempt,
+        config: state.demo ? clampConfig(demoPreset(state.round, attempt)) : state.config,
         phase: "configuring",
         score: state.score - state.results.xp,
         history: state.history.slice(0, -1),
         results: null,
         firing: emptyFiring(),
       };
+    }
 
     case "RESTART":
       if (state.phase !== "summary") return state;
-      return { ...initialState, config: state.config, server: state.server };
+      return { ...initialState, config: state.config, server: state.server, demo: state.demo };
 
     case "SERVER_STATUS": {
       const a = action.server;

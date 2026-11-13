@@ -15,6 +15,7 @@ import { API_NODE_COUNT } from "./api";
 import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, StoreUnavailableError, type RoundRun } from "./runRound";
 import { edgeExploitTiming, ROUND_COUNT, scenarioFor } from "./scenarios";
 import { score, tally } from "./scoring";
+import { isDemoUrl, presetLabel, retryLabel } from "./demo";
 import { canToggleLimiterStore, initialState, reducer, type AppError, type ServerState } from "./state";
 import type { BoundaryTimeline, DefenseConfig, Scenario } from "./types";
 
@@ -63,7 +64,8 @@ function roundErrors(run: RoundRun, errors: number, total: number): Error {
 }
 
 function Game() {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  // ?demo=1 turns the per-round presets on (read once, at start).
+  const [state, dispatch] = useReducer(reducer, initialState, (s) => ({ ...s, demo: isDemoUrl() }));
   const controllerRef = useRef<AbortController | null>(null);
 
   const onHealth = useCallback((server: ServerState) => dispatch({ type: "SERVER_STATUS", server }), []);
@@ -186,6 +188,11 @@ function Game() {
             />
             <DefensePreview config={state.config} showLimiterStore={canToggleLimiterStore(state.server)} />
             {showConfig && notices}
+            {state.demo && state.phase !== "results" && (
+              <p className="demo-preset">
+                <span className="tag tone-preview">Demo preset</span> {presetLabel(state.config, canToggleLimiterStore(state.server))}
+              </p>
+            )}
             {state.phase !== "results" && (
               <DeployButton firing={state.firing} isFiring={isFiring} disabled={state.server.status !== "online"} onDeploy={handleDeploy} />
             )}
@@ -216,6 +223,7 @@ function Game() {
               scenario={scenario}
               isLastRound={state.round >= ROUND_COUNT}
               onNext={() => dispatch({ type: "NEXT_ROUND" })}
+              retryText={state.demo ? retryLabel(state.round, state.attempt, canToggleLimiterStore(state.server)) : undefined}
               onRetry={() => {
                 dispatch({ type: "RETRY_ROUND" });
                 window.scrollTo({ top: 0 });
