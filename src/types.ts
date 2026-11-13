@@ -147,6 +147,17 @@ export interface Tally {
   attackPassedByNode: Record<string, number>;
 }
 
+/** One response in the live feed (newest first). */
+export interface FeedItem {
+  /** Order of arrival, unique within a round (React key). */
+  seq: number;
+  clientId: string;
+  status: number;
+  reason?: string;
+  nodeId?: string;
+  nodePort?: number;
+}
+
 /** Round 2: attacker requests around the window boundary the bursts aimed at. */
 export interface BoundaryTimeline {
   /** One per attacker request: ms relative to the boundary (negative = before) and its status. */
@@ -183,6 +194,8 @@ export interface RoundResult {
   crossCheck?: CrossCheck;
   /** Why there's no cross-check, e.g. a memory-mode cluster where one node's stats are only its own slice. */
   crossCheckNote?: string;
+  /** The round's last responses (newest first), kept for the results screen. */
+  feed?: FeedItem[];
   /** Set when the round ran behind a load balancer (X-Node-Id other than "single"). `store` = the round's limiter store. */
   cluster?: { store: LimiterStore };
 }
