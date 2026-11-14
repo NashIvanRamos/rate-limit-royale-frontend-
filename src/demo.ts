@@ -1,6 +1,7 @@
-// Demo mode (open the app with ?demo=1): a short 2-round game for the video, and every round sets itself up, so the
-// presenter only clicks Continue, Deploy and Retry while explaining. Each Retry applies the round's next preset; past
-// the end, the last one stays. Presets are just applied: every setting stays editable. Normal play keeps all 5 rounds.
+// Demo mode (open the app with ?demo=1): a 1-round game for the video, the scaling story. The round sets itself up, so
+// the presenter only clicks Continue, Deploy and Retry while explaining. Each Retry applies the round's next preset;
+// past the end, the last one stays. Presets are just applied: every setting stays editable. Normal play keeps all 5
+// rounds and no presets.
 
 import { ALGORITHM_NAMES, formatWindow, KEY_BY_NAMES, LIMITER_STORE_NAMES } from "./labels";
 import type { DefenseConfig, RoundId } from "./types";
@@ -25,21 +26,22 @@ export const DEMO_PRESETS: Readonly<Record<RoundId, readonly DefenseConfig[]>> =
   ],
   // Round 4: the defense barely matters; auth runs before the limiter.
   4: [fixed(10_000, "ip")],
-  // Round 5: key by user leaks 50 budgets; key by IP holds; then the cluster story (per node vs shared).
-  5: [fixed(10_000, "user"), fixed(10_000, "ip"), fixed(10_000, "ip", "memory"), fixed(10_000, "ip")],
+  // Round 5 (the demo): key by IP with per-node limiter state lets ~3x through on a 3-node cluster; shared (Redis)
+  // state holds it to ~1x.
+  5: [fixed(10_000, "ip", "memory"), fixed(10_000, "ip", "redis")],
 };
 
 /**
- * The demo's rounds, in order: Edge Exploit (the algorithm trade-offs) and the Account-Rotation Boss Wave (keying,
- * then the cluster). They keep the game's own round numbers and briefings.
+ * The demo's rounds: only the Account-Rotation Boss Wave (per-node vs shared limiter state). It keeps the game's own
+ * round number and briefing; the header shows "01 / 01".
  */
-export const DEMO_ROUNDS: readonly RoundId[] = [2, 5];
+export const DEMO_ROUNDS: readonly RoundId[] = [5];
 const ALL_ROUNDS: readonly RoundId[] = [1, 2, 3, 4, 5];
 
 /** The rounds this game plays, in order. */
 export const roundSequence = (demo: boolean): readonly RoundId[] => (demo ? DEMO_ROUNDS : ALL_ROUNDS);
 
-/** "Round 1 of 2" in demo mode: where `round` sits in the sequence (1-based) and how many rounds there are. */
+/** "Round 1 of 1" in demo mode: where `round` sits in the sequence (1-based) and how many rounds there are. */
 export function roundPosition(round: RoundId, demo: boolean): { index: number; total: number } {
   const seq = roundSequence(demo);
   return { index: Math.max(0, seq.indexOf(round)) + 1, total: seq.length };

@@ -78,7 +78,7 @@ function Game() {
   useEffect(() => () => controllerRef.current?.abort(), []);
 
   const scenario = scenarioFor(state.round);
-  // "Round 1 of 2" in demo mode, "Round 3 of 5" otherwise.
+  // "Round 1 of 1" in demo mode, "Round 3 of 5" otherwise.
   const position = roundPosition(state.round, state.demo);
   const isFiring = state.phase === "firing";
 
