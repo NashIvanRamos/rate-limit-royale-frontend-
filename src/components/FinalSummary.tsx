@@ -49,7 +49,10 @@ export function FinalSummary({ history, score, onRestart }: FinalSummaryProps) {
                 <td className="summary-table__name">
                   <span className="num muted">{String(r.round).padStart(2, "0")}</span> {scenarioFor(r.round).name}
                 </td>
-                <td className="num summary-table__config">{shortConfig(r.config)}</td>
+                <td className="num summary-table__config">
+                  {/* The limiter store only means something behind a load balancer. */}
+                  {shortConfig(r.cluster ? r.config : { ...r.config, limiterStore: undefined })}
+                </td>
                 <td className="num num-col">
                   <span className="tone-accepted">{r.tally.accepted}</span> / <span className="tone-blocked">{r.tally.blocked}</span> /{" "}
                   <span className="tone-auth">{r.tally.rejectedAuth}</span>

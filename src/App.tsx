@@ -13,9 +13,9 @@ import { crossCheck } from "./crossCheck";
 import { useServerHealth } from "./hooks/useServerHealth";
 import { API_NODE_COUNT } from "./api";
 import { DeployError, OfflineError, RoundAbortedError, runRound, SetupError, StoreUnavailableError, type RoundRun } from "./runRound";
-import { edgeExploitTiming, ROUND_COUNT, scenarioFor } from "./scenarios";
+import { edgeExploitTiming, scenarioFor } from "./scenarios";
 import { score, tally } from "./scoring";
-import { isDemoUrl, presetLabel, retryLabel } from "./demo";
+import { isDemoUrl, presetLabel, retryLabel, roundPosition, roundSequence } from "./demo";
 import { canToggleLimiterStore, initialState, reducer, type AppError, type ServerState } from "./state";
 import type { BoundaryTimeline, DefenseConfig, Scenario } from "./types";
 
@@ -65,7 +65,10 @@ function roundErrors(run: RoundRun, errors: number, total: number): Error {
 
 function Game() {
   // ?demo=1 turns the per-round presets on (read once, at start).
-  const [state, dispatch] = useReducer(reducer, initialState, (s) => ({ ...s, demo: isDemoUrl() }));
+  const [state, dispatch] = useReducer(reducer, initialState, (s) => {
+    const demo = isDemoUrl();
+    return { ...s, demo, round: roundSequence(demo)[0]! };
+  });
   const controllerRef = useRef<AbortController | null>(null);
 
   const onHealth = useCallback((server: ServerState) => dispatch({ type: "SERVER_STATUS", server }), []);
@@ -75,6 +78,8 @@ function Game() {
   useEffect(() => () => controllerRef.current?.abort(), []);
 
   const scenario = scenarioFor(state.round);
+  // "Round 1 of 2" in demo mode, "Round 3 of 5" otherwise.
+  const position = roundPosition(state.round, state.demo);
   const isFiring = state.phase === "firing";
 
   // Background tabs throttle timers: warn if the tab is hidden while a round is firing.
@@ -168,7 +173,7 @@ function Game() {
 
       <div className="shell">
         <section className="hero">
-          <Header round={state.round} score={state.score} server={state.server} />
+          <Header round={position.index} total={position.total} score={state.score} server={state.server} />
           {state.phase !== "summary" && (
             <BriefingCard
               scenario={scenario}
@@ -221,7 +226,7 @@ function Game() {
             <ResultsCard
               result={state.results}
               scenario={scenario}
-              isLastRound={state.round >= ROUND_COUNT}
+              isLastRound={position.index >= position.total}
               onNext={() => dispatch({ type: "NEXT_ROUND" })}
               retryText={state.demo ? retryLabel(state.round, state.attempt, canToggleLimiterStore(state.server)) : undefined}
               onRetry={() => {

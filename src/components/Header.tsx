@@ -1,11 +1,12 @@
-import { ROUND_COUNT } from "../scenarios";
 import type { ServerState } from "../state";
 import { Icon } from "./ui/Icon";
 import { ProgressBar } from "./ui/ProgressBar";
 import { StatusPill } from "./ui/StatusPill";
 
 interface HeaderProps {
+  /** Position in this game's sequence (1-based) and the number of rounds: "01 / 05", or "01 / 02" in demo mode. */
   round: number;
+  total: number;
   score: number;
   server: ServerState;
 }
@@ -18,7 +19,7 @@ function degradedTitle(server: ServerState): string {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export function Header({ round, score, server }: HeaderProps) {
+export function Header({ round, total, score, server }: HeaderProps) {
   return (
     <header className="stack" style={{ gap: 16 }}>
       <div className="row spread" style={{ alignItems: "flex-start" }}>
@@ -47,7 +48,7 @@ export function Header({ round, score, server }: HeaderProps) {
         <div className="stack" style={{ gap: 2 }}>
           <span className="label">Current round</span>
           <span className="scoreline__value num">
-            {pad(round)} / {pad(ROUND_COUNT)}
+            {pad(round)} / {pad(total)}
           </span>
         </div>
         <div className="stack" style={{ gap: 2, alignItems: "flex-end" }}>
@@ -55,7 +56,7 @@ export function Header({ round, score, server }: HeaderProps) {
           <span className="scoreline__value scoreline__value--xp num">{score.toLocaleString("en-US")} XP</span>
         </div>
       </div>
-      <ProgressBar value={round / ROUND_COUNT} tone="accepted" label={`Round ${round} of ${ROUND_COUNT}`} />
+      <ProgressBar value={round / total} tone="accepted" label={`Round ${round} of ${total}`} />
     </header>
   );
 }

@@ -1,6 +1,6 @@
-// Demo presets (open the app with ?demo=1): every round sets itself up, so the presenter only clicks Continue,
-// Deploy and Retry while explaining. Each Retry applies the round's next preset; past the end, the last one stays.
-// Presets are just applied: every setting stays editable.
+// Demo mode (open the app with ?demo=1): a short 2-round game for the video, and every round sets itself up, so the
+// presenter only clicks Continue, Deploy and Retry while explaining. Each Retry applies the round's next preset; past
+// the end, the last one stays. Presets are just applied: every setting stays editable. Normal play keeps all 5 rounds.
 
 import { ALGORITHM_NAMES, formatWindow, KEY_BY_NAMES, LIMITER_STORE_NAMES } from "./labels";
 import type { DefenseConfig, RoundId } from "./types";
@@ -16,8 +16,8 @@ const fixed = (windowMs: number, keyBy: DefenseConfig["keyBy"], limiterStore: De
 export const DEMO_PRESETS: Readonly<Record<RoundId, readonly DefenseConfig[]>> = {
   // Round 1: any algorithm contains a steady flood.
   1: [fixed(10_000, "ip")],
-  // Round 2: fixed window lets ~2x through at the boundary; sliding doesn't.
-  2: [fixed(3_000, "ip"), { ...fixed(3_000, "ip"), algorithm: "sliding" }],
+  // Round 2: fixed window lets ~2x through at the boundary; sliding doesn't; token allows a little refill.
+  2: [fixed(3_000, "ip"), { ...fixed(3_000, "ip"), algorithm: "sliding" }, { ...fixed(3_000, "ip"), algorithm: "token" }],
   // Round 3: token bucket (burst, then refill) vs sliding (strict per window).
   3: [
     { ...fixed(1_000, "ip"), algorithm: "token" },
@@ -28,6 +28,22 @@ export const DEMO_PRESETS: Readonly<Record<RoundId, readonly DefenseConfig[]>> =
   // Round 5: key by user leaks 50 budgets; key by IP holds; then the cluster story (per node vs shared).
   5: [fixed(10_000, "user"), fixed(10_000, "ip"), fixed(10_000, "ip", "memory"), fixed(10_000, "ip")],
 };
+
+/**
+ * The demo's rounds, in order: Edge Exploit (the algorithm trade-offs) and the Account-Rotation Boss Wave (keying,
+ * then the cluster). They keep the game's own round numbers and briefings.
+ */
+export const DEMO_ROUNDS: readonly RoundId[] = [2, 5];
+const ALL_ROUNDS: readonly RoundId[] = [1, 2, 3, 4, 5];
+
+/** The rounds this game plays, in order. */
+export const roundSequence = (demo: boolean): readonly RoundId[] => (demo ? DEMO_ROUNDS : ALL_ROUNDS);
+
+/** "Round 1 of 2" in demo mode: where `round` sits in the sequence (1-based) and how many rounds there are. */
+export function roundPosition(round: RoundId, demo: boolean): { index: number; total: number } {
+  const seq = roundSequence(demo);
+  return { index: Math.max(0, seq.indexOf(round)) + 1, total: seq.length };
+}
 
 /** The URL flag that turns presets on: http://localhost:5174/?demo=1 */
 export function isDemoUrl(): boolean {
