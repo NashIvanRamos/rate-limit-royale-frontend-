@@ -4,7 +4,7 @@ import { ProgressBar } from "./ui/ProgressBar";
 import { StatusPill } from "./ui/StatusPill";
 
 interface HeaderProps {
-  /** Position in this game's sequence (1-based) and the number of rounds: "01 / 05", or "01 / 02" in demo mode. */
+  /** Position in this game's sequence (1-based) and the number of rounds: "01 / 05", or "01 / 01" in demo mode. */
   round: number;
   total: number;
   score: number;
