@@ -10,8 +10,7 @@
 import type { LimiterStore } from "./api";
 import type { StageEvent, Stage } from "./runRound";
 import type { FiringProgress, LiveCounts } from "./scheduler";
-import { demoPreset } from "./demo";
-import { ROUND_COUNT } from "./scenarios";
+import { demoPreset, roundSequence } from "./demo";
 import { CONFIG_LIMITS, type DefenseConfig, type FeedItem, type RoundId, type RoundResult, type StatusCounts, type ValidationIssue } from "./types";
 
 export type Phase = "briefing" | "configuring" | "firing" | "results" | "summary";
@@ -189,10 +188,14 @@ export function reducer(state: State, action: Action): State {
       if (state.phase !== "firing") return state;
       return { ...state, phase: "configuring", firing: emptyFiring(), error: action.error };
 
-    case "NEXT_ROUND":
+    case "NEXT_ROUND": {
       if (state.phase !== "results") return state;
-      if (state.round >= ROUND_COUNT) return { ...state, phase: "summary" };
-      return { ...state, phase: "briefing", round: (state.round + 1) as RoundId, results: null, error: null, attempt: 0 };
+      // Demo mode plays a shorter sequence (rounds 2 and 5); normal play goes 1 → 5.
+      const seq = roundSequence(state.demo);
+      const next = seq[seq.indexOf(state.round) + 1];
+      if (next === undefined) return { ...state, phase: "summary" };
+      return { ...state, phase: "briefing", round: next, results: null, error: null, attempt: 0 };
+    }
 
     case "RETRY_ROUND": {
       if (state.phase !== "results" || !state.results) return state;
@@ -211,7 +214,7 @@ export function reducer(state: State, action: Action): State {
 
     case "RESTART":
       if (state.phase !== "summary") return state;
-      return { ...initialState, config: state.config, server: state.server, demo: state.demo };
+      return { ...initialState, round: roundSequence(state.demo)[0]!, config: state.config, server: state.server, demo: state.demo };
 
     case "SERVER_STATUS": {
       const a = action.server;
